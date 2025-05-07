@@ -1,0 +1,13 @@
+# filepath: /Users/kplau/Workspaces/ai-workspace/vscode/system-info-utility/.gitignore
+# Build files
+build/
+*.o
+*.out
+*.exe
+
+# Python cache
+__pycache__/
+*.pyc
+
+# macOS system files
+.DS_Store

@@ -465,18 +465,73 @@ def main():
     decoder submodules, and saves the results.
     """
     # Define and parse command-line arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--output", type=str, default="vae_diagnostic_output")
-    parser.add_argument("--device", type=str, default="hpu")
-    parser.add_argument("--filter", type=str, default="all", choices=["all", "leaf", "non-leaf"])
-    parser.add_argument("--mode", type=str, default="single", choices=["single", "compile_except"])
-    parser.add_argument("--exclude_path", type=str, help="Path to exclude in compile_except mode")
-    parser.add_argument("--save_images", action="store_true")
-    parser.add_argument("--tensorboard", action="store_true")
-    parser.add_argument("--wandb", action="store_true")
-    parser.add_argument("--wandb_project", type=str, default="vae_diagnostic")
-    parser.add_argument("--wandb_run", type=str, default="run_vae_test")
-    parser.add_argument("--list-submodules", action="store_true", help="List VAE decoder submodules hierarchically")
+    parser = argparse.ArgumentParser(
+        description="Run diagnostic tests on the VAE decoder submodules of a diffusion pipeline."
+    )
+    parser.add_argument(
+        "--output", 
+        type=str, 
+        default="vae_diagnostic_output", 
+        help="Directory to save diagnostic results and outputs (default: 'vae_diagnostic_output')."
+    )
+    parser.add_argument(
+        "--device", 
+        type=str, 
+        default="hpu", 
+        choices=["hpu", "cpu"], 
+        help="Device to run the pipeline on ('hpu' or 'cpu', default: 'hpu')."
+    )
+    parser.add_argument(
+        "--filter", 
+        type=str, 
+        default="all", 
+        choices=["all", "leaf", "non-leaf"], 
+        help="Type of submodules to test ('all', 'leaf', or 'non-leaf', default: 'all')."
+    )
+    parser.add_argument(
+        "--mode", 
+        type=str, 
+        default="single", 
+        choices=["single", "compile_except"], 
+        help="Compilation mode ('single' or 'compile_except', default: 'single')."
+    )
+    parser.add_argument(
+        "--exclude_path", 
+        type=str, 
+        help="Path to exclude in 'compile_except' mode (required for 'compile_except' mode)."
+    )
+    parser.add_argument(
+        "--save_images", 
+        action="store_true", 
+        help="Save generated images to the output directory."
+    )
+    parser.add_argument(
+        "--tensorboard", 
+        action="store_true", 
+        help="Enable logging metrics to TensorBoard."
+    )
+    parser.add_argument(
+        "--wandb", 
+        action="store_true", 
+        help="Enable logging metrics to Weights and Biases (wandb)."
+    )
+    parser.add_argument(
+        "--wandb_project", 
+        type=str, 
+        default="vae_diagnostic", 
+        help="Weights and Biases project name (default: 'vae_diagnostic')."
+    )
+    parser.add_argument(
+        "--wandb_run", 
+        type=str, 
+        default="run_vae_test", 
+        help="Weights and Biases run name (default: 'run_vae_test')."
+    )
+    parser.add_argument(
+        "--list-submodules", 
+        action="store_true", 
+        help="List VAE decoder submodules hierarchically and save to a file."
+    )
     args = parser.parse_args()
 
     device = args.device
