@@ -291,7 +291,7 @@ def create_pipeline(model_name, gaudi_config=None, device="cpu"):
 
 # ------------------ Main Diagnostic Runner ------------------
 def run_diagnostic(model_name, gaudi_config, device, mode, filter_type, exclude_path,
-                   save_images, output_dir, tb_writer, wandb_run):
+                   save_images, output_dir, tb_writer, wandb_run, submodules=None):
     """Run diagnostic tests on the VAE decoder submodules of a diffusion pipeline.
     
     The function tests the effect of compiling individual submodules or all submodules
@@ -308,6 +308,7 @@ def run_diagnostic(model_name, gaudi_config, device, mode, filter_type, exclude_
         output_dir (str): Directory to save generated images.
         tb_writer (SummaryWriter): TensorBoard writer for logging.
         wandb_run (wandb.Run): Weights and Biases run for logging.
+        submodules (list, optional): Pre-filtered list of (path, submodule) tuples to test.
         
     Returns:
         tuple: A tuple containing:
@@ -318,10 +319,14 @@ def run_diagnostic(model_name, gaudi_config, device, mode, filter_type, exclude_
     pipe = create_pipeline(model_name, gaudi_config, device)
     # Store the original VAE decoder for resetting between tests
     vae_decoder_orig = pipe.vae.decoder
-    # Get all submodules of VAE decoder
-    all_submodules = list(get_all_submodules(pipe.vae.decoder))
-    # Filter submodules based on the specified type
-    submodules = filter_submodules(all_submodules, filter_type)
+    
+    # Get submodules to test
+    if submodules is None:
+        # Get all submodules of VAE decoder if no pre-filtered list provided
+        all_submodules = list(get_all_submodules(pipe.vae.decoder))
+        # Filter submodules based on the specified type
+        submodules = filter_submodules(all_submodules, filter_type)
+    
     if save_images:
         # Create output directory for saving images
         os.makedirs(output_dir, exist_ok=True)
@@ -457,6 +462,41 @@ def save_results(results, bad_paths, json_path, csv_path, bad_paths_path):
             f.write(path + "\n")
 
 
+def print_test_summary(results, bad_paths, output_dir):
+    """Print a summary of the diagnostic test results.
+    
+    Args:
+        results (list): List of diagnostic result dictionaries.
+        bad_paths (list): List of paths that produced blank images or errors.
+        output_dir (str): Directory where results are saved.
+    """
+    total_tests = len(results)
+    blank_outputs = sum(1 for r in results if r["blank"])
+    errors = sum(1 for r in results if r["error"])
+    successful = total_tests - blank_outputs - errors
+
+    print("\n===== Test Summary =====")
+    print(f"Total tests run: {total_tests}")
+    print(f"Successful tests: {successful}")
+    print(f"Blank outputs: {blank_outputs}")
+    print(f"Errors: {errors}")
+    
+    if bad_paths:
+        print("\nProblematic submodules:")
+        for path in bad_paths:
+            result = next(r for r in results if r["path"] == path)
+            status = "ERROR" if result["error"] else "BLANK"
+            print(f"- {path}: {status}")
+            if result["error"]:
+                print(f"  Error: {result['error']}")
+    
+    print(f"\nDetailed results saved to:")
+    print(f"- JSON: {os.path.join(output_dir, 'results.json')}")
+    print(f"- CSV: {os.path.join(output_dir, 'results.csv')}")
+    print(f"- Bad paths: {os.path.join(output_dir, 'bad_paths.txt')}")
+    print("=======================\n")
+
+
 # ------------------ Main ------------------
 def main():
     """Main entry point for the VAE diagnostic script.
@@ -498,22 +538,39 @@ def main():
     parser.add_argument(
         "--exclude_path", 
         type=str, 
-        help="Path to exclude in 'compile_except' mode (required for 'compile_except' mode)."
+        help="Path to exclude in compile_except mode."
     )
     parser.add_argument(
-        "--save_images", 
-        action="store_true", 
-        help="Save generated images to the output directory."
+        "--retest_bad_paths",
+        type=str,
+        help="Path to a file containing previously identified problematic submodule paths to re-test."
     )
     parser.add_argument(
-        "--tensorboard", 
-        action="store_true", 
-        help="Enable logging metrics to TensorBoard."
+        "--save_images",
+        action="store_true",
+        help="Save generated images for each test."
     )
     parser.add_argument(
-        "--wandb", 
-        action="store_true", 
-        help="Enable logging metrics to Weights and Biases (wandb)."
+        "--model_name",
+        type=str,
+        default="stabilityai/stable-diffusion-xl-base-1.0",
+        help="Name of the pretrained model to use."
+    )
+    parser.add_argument(
+        "--gaudi_config",
+        type=str,
+        default="Habana/stable-diffusion",
+        help="Path to Gaudi configuration file (default: 'Habana/stable-diffusion')."
+    )
+    parser.add_argument(
+        "--use_tensorboard",
+        action="store_true",
+        help="Enable TensorBoard logging."
+    )
+    parser.add_argument(
+        "--use_wandb",
+        action="store_true",
+        help="Enable Weights and Biases logging."
     )
     parser.add_argument(
         "--wandb_project", 
@@ -538,70 +595,84 @@ def main():
     # Create output directory if it doesn't exist
     os.makedirs(args.output, exist_ok=True)
 
-    # Initialize TensorBoard writer if enabled
-    tb_writer = SummaryWriter(log_dir=os.path.join(args.output, "tensorboard")) if args.tensorboard else None
+    # Set up TensorBoard writer if enabled
+    tb_writer = None
+    if args.use_tensorboard:
+        tb_writer = SummaryWriter(log_dir=os.path.join(args.output, "tensorboard"))
 
-    # Initialize Weights and Biases if enabled and available
+    # Set up Weights and Biases if enabled
     wandb_run = None
-    if args.wandb:
-        if WANDB_AVAILABLE:
-            wandb_run = wandb.init(project=args.wandb_project, name=args.wandb_run)
-        else:
-            print("[WARN] wandb not installed. Skipping wandb logging.")
+    if args.use_wandb and WANDB_AVAILABLE:
+        wandb_run = wandb.init(project="vae-diagnostic", config=vars(args))
 
-    # Define model and configuration
-    model_name = "stabilityai/stable-diffusion-xl-base-1.0"
-    gaudi_config = "Habana/stable-diffusion"
-    
-    # List submodules if requests
-    if args.list_submodules:
-        pipe = create_pipeline(model_name=model_name, gaudi_config=gaudi_config)
-        lines = list_submodules(pipe.vae.decoder)
+    # Define output file paths
+    json_path = os.path.join(args.output, "results.json")
+    csv_path = os.path.join(args.output, "results.csv")
+    bad_paths_path = os.path.join(args.output, "bad_paths.txt")
 
-        print("VAE Decoder Submodules:")
-        for line in lines:
-            print(line)
+    # Load bad paths from file if specified
+    bad_paths_to_test = []
+    if args.retest_bad_paths:
+        if not os.path.exists(args.retest_bad_paths):
+            print(f"Error: Bad paths file not found: {args.retest_bad_paths}")
+            return
+        with open(args.retest_bad_paths, "r") as f:
+            bad_paths_to_test = [line.strip() for line in f if line.strip()]
+        if not bad_paths_to_test:
+            print("No paths found in the bad paths file.")
+            return
+        print(f"Re-testing {len(bad_paths_to_test)} problematic submodules...")
+        # Override mode to single and filter to all for re-testing
+        args.mode = "single"
+        args.filter = "all"
 
-        submodules_list_path = os.path.join(args.output, "vae_submodules_list.txt")
-        with open(submodules_list_path, "w") as f:
-            f.write("VAE Decoder Submodules:\n")
-            f.write("\n".join(lines))
-        print(f"Submodule list written to: {submodules_list_path}")
+    # Run diagnostics
+    if args.retest_bad_paths:
+        # Create a custom submodules list with only the bad paths
+        pipe = create_pipeline(args.model_name, args.gaudi_config, args.device)
+        all_submodules = list(get_all_submodules(pipe.vae.decoder))
+        submodules = [(path, sub) for path, sub in all_submodules if path in bad_paths_to_test]
+        results, bad_paths = run_diagnostic(
+            args.model_name,
+            args.gaudi_config,
+            args.device,
+            args.mode,
+            args.filter,
+            args.exclude_path,
+            args.save_images,
+            os.path.join(args.output, "images") if args.save_images else None,
+            tb_writer,
+            wandb_run,
+            submodules=submodules  # Pass the filtered submodules list
+        )
+    else:
+        results, bad_paths = run_diagnostic(
+            args.model_name,
+            args.gaudi_config,
+            args.device,
+            args.mode,
+            args.filter,
+            args.exclude_path,
+            args.save_images,
+            os.path.join(args.output, "images") if args.save_images else None,
+            tb_writer,
+            wandb_run
+        )
 
-    # Run diagnostic tests
-    print("[RUN] Diagnostic...")
-    results, bad_paths = run_diagnostic(
-        model_name=model_name,
-        gaudi_config=gaudi_config,
-        device=device,
-        mode=args.mode,
-        filter_type=args.filter,
-        exclude_path=args.exclude_path,
-        save_images=args.save_images,
-        output_dir=os.path.join(args.output, "images") if args.save_images else None,
-        tb_writer=tb_writer,
-        wandb_run=wandb_run
-    )
+    # Save results
+    save_results(results, bad_paths, json_path, csv_path, bad_paths_path)
 
-    # Clean up logging
+    # Print test summary
+    print_test_summary(results, bad_paths, args.output)
+
+    # Clean up
     if tb_writer:
-        tb_writer.flush()
         tb_writer.close()
     if wandb_run:
         wandb_run.finish()
 
-    # Save diagnostic results
-    json_path = os.path.join(args.output, "results.json")
-    csv_path = os.path.join(args.output, "results.csv")
-    bad_path = os.path.join(args.output, "bad_submodules.txt")
-    save_results(results, bad_paths, json_path, csv_path, bad_path)
-
-    # Print summary of results
-    print("\n===== Summary =====")
-    print(f"Total tested: {len(results)}")
-    print(f"Blank outputs / errors: {len(bad_paths)}")
-    print(f"Saved bad submodules to: {bad_path}")
-    print("===================\n")
+    print(f"\nDiagnostic results saved to: {args.output}")
+    print(f"Found {len(bad_paths)} problematic submodules.")
 
 
 if __name__ == "__main__":
