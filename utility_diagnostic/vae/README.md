@@ -128,7 +128,7 @@ The tool supports two main compilation modes:
 
 3. **Using Bad Paths File**:
    ```bash
-   python vae_diagnostic.py --mode compile_except --retest_bad_paths "bad_paths.txt"
+   python vae_diagnostic.py --mode compile_except --exclude_path "bad_paths.txt"
    ```
 
 ### Compile Except Mode Results
@@ -206,19 +206,19 @@ The VAE diagnostic tool supports the following command-line arguments:
 
 | Argument | Description |
 |----------|-------------|
-| `--output OUTPUT` | Directory to save diagnostic results and outputs (default: 'vae_diagnostic_output') |
-| `--device DEVICE` | Device to run the pipeline on ('hpu' or 'cpu', default: 'hpu') |
-| `--filter FILTER` | Type of submodules to test ('all', 'leaf', or 'non-leaf', default: 'all') |
-| `--mode MODE` | Compilation mode ('single' or 'compile_except', default: 'single') |
-| `--exclude_path PATH` | Path to exclude in 'compile_except' mode |
+| `--output OUTPUT` | Directory to save diagnostic results and outputs (default: `'vae_diagnostic_output'`) |
+| `--device DEVICE` | Device to run the pipeline on (`'hpu'` or `'cpu'`, default: `'hpu'`) |
+| `--filter FILTER` | Type of submodules to test (`'all'`, `'leaf'`, or `'non-leaf'`, default: `'all'`) |
+| `--mode MODE` | Compilation mode (`'single'` or `'compile_except'`, default: `'single'`) |
+| `--exclude_path PATH` | Path to exclude in `'compile_except'` mode |
 | `--test_paths PATHS` | Specific submodule paths to test (file or comma-separated list) |
 | `--save_images` | Save generated images to the output directory |
-| `--model_name NAME` | Name of the pretrained model to use (default: 'stabilityai/stable-diffusion-xl-base-1.0') |
-| `--gaudi_config PATH` | Path to Gaudi configuration file (default: 'Habana/stable-diffusion') |
+| `--model_name NAME` | Name of the pretrained model to use (default: `'stabilityai/stable-diffusion-xl-base-1.0'`) |
+| `--gaudi_config PATH` | Path to Gaudi configuration file (default: `'Habana/stable-diffusion'`) |
 | `--use_tensorboard` | Enable TensorBoard logging |
 | `--use_wandb` | Enable Weights and Biases logging |
-| `--wandb_project NAME` | Weights and Biases project name (default: 'vae_diagnostic') |
-| `--wandb_run NAME` | Weights and Biases run name (default: 'run_vae_test') |
+| `--wandb_project NAME` | Weights and Biases project name (default: `'vae_diagnostic'`) |
+| `--wandb_run NAME` | Weights and Biases run name (default: `'run_vae_test'`) |
 | `--list_submodules` | List VAE decoder submodules hierarchically and save to a file |
 
 ## Usage Examples
@@ -294,7 +294,11 @@ The tool supports a retesting workflow for problematic paths:
 
 3. **Retest Bad Paths**:
    ```bash
-   python vae_diagnostic.py --mode compile_except --retest_bad_paths "bad_paths.txt"
+   # First run a single mode test to generate bad_paths.txt
+   python vae_diagnostic.py --mode single
+
+   # Then run compile_except mode without exclude_path to use bad_paths.txt
+   python vae_diagnostic.py --mode compile_except
    ```
 
 ## Best Practices for Path Testing

@@ -339,8 +339,13 @@ def run_diagnostic(model_name, gaudi_config, device, mode, filter_type, exclude_
     num_inference_steps=25
 
     if mode == "compile_except":
-        # Convert exclude_path to list if it's a string
-        exclude_paths = [exclude_path] if isinstance(exclude_path, str) else exclude_path
+        if os.path.exists(exclude_path):
+            # If exclude_path is a file path, read paths from file
+            with open(exclude_path, "r") as f:
+                exclude_paths = [line.strip() for line in f if line.strip()]
+        else:
+            # Convert exclude_path to list if it's a string
+            exclude_paths = [exclude_path] if isinstance(exclude_path, str) else exclude_path
         print(f"[MODE] Compiling all except: {', '.join(exclude_paths)}")
         pipe.vae.decoder = copy.deepcopy(vae_decoder_orig).to(device)
         try:
