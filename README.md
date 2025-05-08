@@ -65,6 +65,8 @@ The VAE (Variational Autoencoder) diagnostic tool is designed to help diagnose a
 - **Deep Copy Testing**: Uses deep copy of VAE decoder for each test to ensure clean state
 - **Progress Tracking**: Visual progress bar for submodule testing
 - **Detailed Error Reporting**: Enhanced error messages with original module type information
+- **Comprehensive Metrics**: Per-module tracking of image statistics and compilation status
+- **Multi-path Testing**: Support for testing multiple excluded paths in compile_except mode
 
 ### Test Parameters
 
@@ -76,7 +78,110 @@ The diagnostic tool uses the following default parameters for testing:
 - **Image Format**: PNG
 - **Test Modes**: 
   - `single`: Test individual submodules
-  - `compile_except`: Test all submodules except specified path
+  - `compile_except`: Test all submodules except specified path(s)
+
+### Compilation Modes
+
+The tool supports two main compilation modes:
+
+1. **Single Mode** (`--mode single`):
+   - Tests each submodule individually
+   - Compiles only the target submodule
+   - Useful for identifying specific problematic modules
+   - Provides detailed per-module metrics
+
+2. **Compile Except Mode** (`--mode compile_except`):
+   - Compiles all submodules except the specified path(s)
+   - Supports both single path and multiple paths exclusion
+   - Useful for testing module interactions
+   - Helps identify modules that cause issues when compiled together
+   - Can be used to incrementally build a working compilation configuration
+
+#### Using Compile Except Mode
+
+1. **Single Path Exclusion**:
+   ```bash
+   python utility_diagnostic/vae_diagnostic.py --mode compile_except --exclude_path "path.to.submodule"
+   ```
+
+2. **Multiple Path Exclusion**:
+   ```bash
+   python utility_diagnostic/vae_diagnostic.py --mode compile_except --exclude_path "path1,path2,path3"
+   ```
+
+3. **Using Bad Paths File**:
+   ```bash
+   python utility_diagnostic/vae_diagnostic.py --mode compile_except --retest_bad_paths "bad_paths.txt"
+   ```
+
+#### Compile Except Mode Results
+
+When using compile_except mode, the results include:
+
+1. **Metrics**:
+   - Combined metrics for all compiled modules
+   - Individual metrics for excluded modules
+   - Interaction effects between modules
+
+2. **Output Files**:
+   - Images named with excluded path(s)
+   - Metrics organized by excluded path
+   - Error messages specific to module interactions
+
+3. **Error Handling**:
+   - Type compatibility checks for all modules
+   - Hierarchical error tracking
+   - Module interaction error detection
+
+### Best Practices for Compile Except Mode
+
+1. Start with single path exclusion to identify problematic modules
+2. Use the bad paths file to track problematic modules
+3. Incrementally add paths to exclusion list
+4. Monitor module interactions in the results
+5. Use TensorBoard to visualize interaction effects
+6. Check error messages for module type compatibility
+7. Use the CSV output to analyze module relationships
+8. Save images to visually verify compilation effects
+
+### Metrics and Logging
+
+The tool provides comprehensive metrics tracking through multiple channels:
+
+1. **TensorBoard Metrics**:
+   - Per-module mean values
+   - Per-module standard deviation
+   - Hierarchical metric organization by module path
+
+2. **Weights & Biases Metrics**:
+   - Module-specific metrics under path-based namespaces
+   - Mean and standard deviation tracking
+   - Blank image detection status
+   - Real-time metric visualization
+
+3. **File-based Logging**:
+   - JSON format for detailed analysis
+   - CSV format for spreadsheet processing
+   - Text file for quick reference of problematic modules
+
+### Error Handling
+
+The tool implements sophisticated error handling:
+
+1. **Compilation Errors**:
+   - Detailed error messages with module type information
+   - Original module type preservation for debugging
+   - Hierarchical error tracking for multi-path tests
+
+2. **Image Generation Errors**:
+   - Blank image detection with configurable threshold
+   - Zero-mean output detection
+   - Per-module error status tracking
+
+3. **Module Type Errors**:
+   - Automatic detection of non-wrappable modules
+   - Type compatibility checking
+   - Original type preservation for debugging
 
 ### Command-Line Arguments
 
@@ -146,6 +251,7 @@ output_directory/
 │   ├── path_to_module_OK.png
 │   └── path_to_module_BLANK.png
 ├── tensorboard/            # TensorBoard logs (if --tensorboard enabled)
+│   └── metrics/           # Hierarchical metric organization
 ├── results.json           # Detailed results in JSON format
 ├── results.csv            # Results in CSV format
 ├── bad_submodules.txt     # List of problematic submodules
@@ -155,11 +261,11 @@ output_directory/
 ### Interpreting Results
 
 - **results.json/csv**: Contains detailed information about each test, including:
-  - Module path
+  - Module path(s)
   - Test mode (single/compile_except)
   - Image statistics (mean, std)
   - Blank image detection
-  - Error messages (if any)
+  - Error messages with module type information
   - Original module type (for wrapped modules)
   - Test status (OK/BLANK/ERROR)
 
@@ -168,6 +274,7 @@ output_directory/
   - Generated errors during compilation
   - Had zero mean output
   - Failed to compile due to module type incompatibility
+  - Caused errors in multi-path testing
 
 ### Test Summary
 
@@ -178,6 +285,7 @@ The tool provides a detailed test summary including:
 - Number of errors
 - List of problematic submodules with their status and error messages
 - Paths to detailed result files
+- Hierarchical organization of test results
 
 ### Best Practices
 
@@ -191,6 +299,8 @@ The tool provides a detailed test summary including:
 8. Monitor the original module types in the results to identify compilation compatibility issues
 9. Check the test summary for a quick overview of test results
 10. Use the CSV output for detailed analysis in spreadsheet software
+11. Enable both TensorBoard and Weights & Biases for comprehensive metric tracking
+12. Review error messages with module type information for debugging
 
 ## Requirements
 

@@ -303,9 +303,9 @@ def run_diagnostic(model_name, gaudi_config, device, mode, filter_type, exclude_
         device (str): The device to run the pipeline on ("hpu" or "cpu").
         mode (str): Compilation mode {"single", or "compile_except").
         filter_type (str): Type of submodules to test ("all", "leaf", or "non-leaf").
-        exclude_path (str): Path to exclude in compile_except mode.
+        exclude_path (str or list): Path(s) to exclude in compile_except mode.
         save_images (bool): Whether to save generated images.
-        output_dir (str): Directory to save generated images.
+        output_dir (str): Directory to save diagnostic results.
         tb_writer (SummaryWriter): TensorBoard writer for logging.
         wandb_run (wandb.Run): Weights and Biases run for logging.
         submodules (list, optional): Pre-filtered list of (path, submodule) tuples to test.
@@ -328,8 +328,9 @@ def run_diagnostic(model_name, gaudi_config, device, mode, filter_type, exclude_
         submodules = filter_submodules(all_submodules, filter_type)
     
     if save_images:
-        # Create output directory for saving images
-        os.makedirs(output_dir, exist_ok=True)
+        # Create images subdirectory
+        images_dir = os.path.join(output_dir, "images")
+        os.makedirs(images_dir, exist_ok=True)
 
     results = []
     bad_paths = []
@@ -338,51 +339,64 @@ def run_diagnostic(model_name, gaudi_config, device, mode, filter_type, exclude_
     num_inference_steps=25
 
     if mode == "compile_except":
-        # Test compilation of all submodules except the excluded path
-        print(f"[MODE] Compiling all except: {exclude_path}")
+        # Convert exclude_path to list if it's a string
+        exclude_paths = [exclude_path] if isinstance(exclude_path, str) else exclude_path
+        print(f"[MODE] Compiling all except: {', '.join(exclude_paths)}")
         pipe.vae.decoder = copy.deepcopy(vae_decoder_orig).to(device)
         try:
-            apply_compile_except(pipe.vae.decoder, exclude_path)
+            # Apply compile_except for each path
+            for path in exclude_paths:
+                apply_compile_except(pipe.vae.decoder, path)
             # Generate an image using the pipeline
             image = pipe(prompt=prompt, num_inference_steps=num_inference_steps).images[0]
             img_tensor = ToTensor()(image)
             blank = is_blank(img_tensor, 0.05)
             result = {
                 "mode": "compile_except",
-                "path": exclude_path,
+                "paths": exclude_paths,
                 "blank": blank,
                 "mean": img_tensor.mean().item(),
                 "std": img_tensor.std().item(),
                 "error": ""
             }
             if blank or result["mean"] == 0:
-                bad_paths.append(exclude_path)
+                bad_paths.extend(exclude_paths)
             if save_images:
                 status = "BLANK" if blank else "OK"
-                save_image_tensor(image, os.path.join(output_dir, f"except_{exclude_path.replace('.', '_')}_{status}.png"))
+                paths_str = "_".join(p.replace('.', '_') for p in exclude_paths)
+                save_image_tensor(image, os.path.join(images_dir, f"except_{paths_str}_{status}.png"))
             if tb_writer:
                 # Log metrics to TensorBoard
-                tb_writer.add_scalar("mean", result["mean"], f"except_{exclude_path}")
-                tb_writer.add_scalar("std", result["std"], f"except_{exclude_path}")
+                for path in exclude_paths:
+                    tb_writer.add_scalar("mean", result["mean"], f"except_{path}")
+                    tb_writer.add_scalar("std", result["std"], f"except_{path}")
             if wandb_run:
                 # Log metrics to Weights and Biases
-                wandb_run.log({f"{exclude_path}/mean": result["mean"],
-                               f"{exclude_path}/std": result["std"],
-                               f"{exclude_path}/blank": blank})
+                for path in exclude_paths:
+                    wandb_run.log({f"{path}/mean": result["mean"],
+                                   f"{path}/std": result["std"],
+                                   f"{path}/blank": blank})
         except Exception as e:
             err_msg = str(e)
             if "is not iterable" in str(e) and "CompiledWrapper" in str(e):
-                orig_type = get_submodule_orig_type(pipe.vae.decoder, exclude_path)
-                err_msg += f" ({orig_type.__module__}.{orig_type.__name__})"
+                # Try to get the original type for each path
+                type_info = []
+                for path in exclude_paths:
+                    try:
+                        orig_type = get_submodule_orig_type(pipe.vae.decoder, path)
+                        type_info.append(f"{path} ({orig_type.__module__}.{orig_type.__name__})")
+                    except:
+                        type_info.append(path)
+                err_msg += f" ({', '.join(type_info)})"
             result = {
                 "mode": "compile_except",
-                "path": exclude_path,
+                "paths": exclude_paths,
                 "blank": True,
                 "mean": 0,
                 "std": 0,
                 "error": err_msg
             }
-            bad_paths.append(exclude_path)
+            bad_paths.extend(exclude_paths)
         results.append(result)
     else:
         # Test compilation of individual submodules
@@ -406,7 +420,7 @@ def run_diagnostic(model_name, gaudi_config, device, mode, filter_type, exclude_
                     bad_paths.append(path)
                 if save_images:
                     status = "BLANK" if blank else "OK"
-                    save_image_tensor(image, os.path.join(output_dir, f"{path.replace('.', '_')}_{status}.png"))
+                    save_image_tensor(image, os.path.join(images_dir, f"{path.replace('.', '_')}_{status}.png"))
                 if tb_writer:
                     # Log metrics to TensorBoard
                     tb_writer.add_scalar("mean", result["mean"], path)
@@ -484,11 +498,17 @@ def print_test_summary(results, bad_paths, output_dir):
     if bad_paths:
         print("\nProblematic submodules:")
         for path in bad_paths:
-            result = next(r for r in results if r["path"] == path)
-            status = "ERROR" if result["error"] else "BLANK"
-            print(f"- {path}: {status}")
-            if result["error"]:
-                print(f"  Error: {result['error']}")
+            # Find the result that contains this path
+            result = None
+            for r in results:
+                if r.get("path") == path or (r.get("paths") and path in r["paths"]):
+                    result = r
+                    break
+            if result:
+                status = "ERROR" if result["error"] else "BLANK"
+                print(f"- {path}: {status}")
+                if result["error"]:
+                    print(f"  Error: {result['error']}")
     
     print(f"\nDetailed results saved to:")
     print(f"- JSON: {os.path.join(output_dir, 'results.json')}")
@@ -591,7 +611,6 @@ def main():
     )
     args = parser.parse_args()
 
-    device = args.device
     # Create output directory if it doesn't exist
     os.makedirs(args.output, exist_ok=True)
 
@@ -604,6 +623,21 @@ def main():
     wandb_run = None
     if args.use_wandb and WANDB_AVAILABLE:
         wandb_run = wandb.init(project="vae-diagnostic", config=vars(args))
+
+    # List submodules if requests
+    if args.list_submodules:
+        pipe = create_pipeline(args.model_name, args.gaudi_config, args.device)
+        lines = list_submodules(pipe.vae.decoder)
+
+        print("VAE Decoder Submodules:")
+        for line in lines:
+            print(line)
+
+        submodules_list_path = os.path.join(args.output, "vae_submodules_list.txt")
+        with open(submodules_list_path, "w") as f:
+            f.write("VAE Decoder Submodules:\n")
+            f.write("\n".join(lines))
+        print(f"Submodule list written to: {submodules_list_path}")
 
     # Define output file paths
     json_path = os.path.join(args.output, "results.json")
@@ -640,11 +674,37 @@ def main():
             args.filter,
             args.exclude_path,
             args.save_images,
-            os.path.join(args.output, "images") if args.save_images else None,
+            args.output,
             tb_writer,
             wandb_run,
-            submodules=submodules  # Pass the filtered submodules list
+            submodules=submodules
         )
+    elif args.mode == "compile_except" and args.exclude_path is None:
+        # If in compile_except mode but no exclude_path specified, try to load from bad_paths.txt
+        bad_paths_file = os.path.join(args.output, "bad_paths.txt")
+        if os.path.exists(bad_paths_file):
+            with open(bad_paths_file, "r") as f:
+                exclude_paths = [line.strip() for line in f if line.strip()]
+            if exclude_paths:
+                print(f"Found {len(exclude_paths)} problematic paths to exclude")
+                results, bad_paths = run_diagnostic(
+                    args.model_name,
+                    args.gaudi_config,
+                    args.device,
+                    args.mode,
+                    args.filter,
+                    exclude_paths,  # Pass the list of paths to exclude
+                    args.save_images,
+                    args.output,
+                    tb_writer,
+                    wandb_run
+                )
+            else:
+                print("No problematic paths found in bad_paths.txt")
+                return
+        else:
+            print("No exclude_path specified and bad_paths.txt not found")
+            return
     else:
         results, bad_paths = run_diagnostic(
             args.model_name,
@@ -654,7 +714,7 @@ def main():
             args.filter,
             args.exclude_path,
             args.save_images,
-            os.path.join(args.output, "images") if args.save_images else None,
+            args.output,
             tb_writer,
             wandb_run
         )
