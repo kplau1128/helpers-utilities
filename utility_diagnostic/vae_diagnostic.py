@@ -561,9 +561,9 @@ def main():
         help="Path to exclude in compile_except mode."
     )
     parser.add_argument(
-        "--retest_bad_paths",
+        "--test_paths",
         type=str,
-        help="Path to a file containing previously identified problematic submodule paths to re-test."
+        help="Specific submodule paths to test. Can be a file path containing paths (one per line) or a comma-separated list of paths."
     )
     parser.add_argument(
         "--save_images",
@@ -605,7 +605,7 @@ def main():
         help="Weights and Biases run name (default: 'run_vae_test')."
     )
     parser.add_argument(
-        "--list-submodules", 
+        "--list_submodules", 
         action="store_true", 
         help="List VAE decoder submodules hierarchically and save to a file."
     )
@@ -644,28 +644,36 @@ def main():
     csv_path = os.path.join(args.output, "results.csv")
     bad_paths_path = os.path.join(args.output, "bad_paths.txt")
 
-    # Load bad paths from file if specified
-    bad_paths_to_test = []
-    if args.retest_bad_paths:
-        if not os.path.exists(args.retest_bad_paths):
-            print(f"Error: Bad paths file not found: {args.retest_bad_paths}")
+    # Load specific paths to test if specified
+    paths_to_test = []
+    if args.test_paths:
+        if os.path.exists(args.test_paths):
+            # If the argument is a file path, read paths from file
+            with open(args.test_paths, "r") as f:
+                paths_to_test = [line.strip() for line in f if line.strip()]
+        else:
+            # If not a file, treat as comma-separated list
+            paths_to_test = [path.strip() for path in args.test_paths.split(",") if path.strip()]
+        
+        if not paths_to_test:
+            print("No paths found to test.")
             return
-        with open(args.retest_bad_paths, "r") as f:
-            bad_paths_to_test = [line.strip() for line in f if line.strip()]
-        if not bad_paths_to_test:
-            print("No paths found in the bad paths file.")
-            return
-        print(f"Re-testing {len(bad_paths_to_test)} problematic submodules...")
-        # Override mode to single and filter to all for re-testing
+        
+        print(f"\nTesting {len(paths_to_test)} specific submodules:")
+        for path in paths_to_test:
+            print(f"- {path}")
+        print()
+        
+        # Override mode to single and filter to all for specific path testing
         args.mode = "single"
         args.filter = "all"
 
     # Run diagnostics
-    if args.retest_bad_paths:
-        # Create a custom submodules list with only the bad paths
+    if paths_to_test:
+        # Create a custom submodules list with only the specified paths
         pipe = create_pipeline(args.model_name, args.gaudi_config, args.device)
         all_submodules = list(get_all_submodules(pipe.vae.decoder))
-        submodules = [(path, sub) for path, sub in all_submodules if path in bad_paths_to_test]
+        submodules = [(path, sub) for path, sub in all_submodules if path in paths_to_test]
         results, bad_paths = run_diagnostic(
             args.model_name,
             args.gaudi_config,

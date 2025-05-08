@@ -12,7 +12,17 @@ This repository contains a collection of tools and utilities designed to assist 
   - [VAE Diagnostic Tool](#vae-diagnostic-tool)
     - [Key Features](#key-features)
     - [Test Parameters](#test-parameters)
+    - [Compilation Modes](#compilation-modes)
+      - [Using Compile Except Mode](#using-compile-except-mode)
+      - [Compile Except Mode Results](#compile-except-mode-results)
+    - [Best Practices for Compile Except Mode](#best-practices-for-compile-except-mode)
+    - [Metrics and Logging](#metrics-and-logging)
+    - [Error Handling](#error-handling)
     - [Command-Line Arguments](#command-line-arguments)
+    - [Testing Specific Paths](#testing-specific-paths)
+    - [Path Testing Behavior](#path-testing-behavior)
+    - [Retesting Workflow](#retesting-workflow)
+    - [Best Practices for Path Testing](#best-practices-for-path-testing)
     - [Usage Examples](#usage-examples)
     - [Output Structure](#output-structure)
     - [Interpreting Results](#interpreting-results)
@@ -21,7 +31,7 @@ This repository contains a collection of tools and utilities designed to assist 
   - [Requirements](#requirements)
   - [Installation](#installation)
   - [Usage](#usage)
-    - [Command-Line Arguments](#command-line-arguments)
+    - [Command-Line Arguments](#command-line-arguments-1)
     - [Example](#example)
   - [Output](#output)
   - [Contributing](#contributing)
@@ -187,22 +197,130 @@ The tool implements sophisticated error handling:
 
 The VAE diagnostic tool supports the following command-line arguments:
 
+| Argument | Description |
+|----------|-------------|
+| `--output OUTPUT` | Directory to save diagnostic results and outputs (default: 'vae_diagnostic_output') |
+| `--device DEVICE` | Device to run the pipeline on ('hpu' or 'cpu', default: 'hpu') |
+| `--filter FILTER` | Type of submodules to test ('all', 'leaf', or 'non-leaf', default: 'all') |
+| `--mode MODE` | Compilation mode ('single' or 'compile_except', default: 'single') |
+| `--exclude_path PATH` | Path to exclude in 'compile_except' mode |
+| `--test_paths PATHS` | Specific submodule paths to test (file or comma-separated list) |
+| `--save_images` | Save generated images to the output directory |
+| `--model_name NAME` | Name of the pretrained model to use (default: 'stabilityai/stable-diffusion-xl-base-1.0') |
+| `--gaudi_config PATH` | Path to Gaudi configuration file (default: 'Habana/stable-diffusion') |
+| `--use_tensorboard` | Enable TensorBoard logging |
+| `--use_wandb` | Enable Weights and Biases logging |
+| `--wandb_project NAME` | Weights and Biases project name (default: 'vae_diagnostic') |
+| `--wandb_run NAME` | Weights and Biases run name (default: 'run_vae_test') |
+| `--list_submodules` | List VAE decoder submodules hierarchically and save to a file |
+
+Example usage:
 ```bash
---output OUTPUT       Directory to save diagnostic results and outputs (default: 'vae_diagnostic_output')
---device DEVICE       Device to run the pipeline on ('hpu' or 'cpu', default: 'hpu')
---filter FILTER       Type of submodules to test ('all', 'leaf', or 'non-leaf', default: 'all')
---mode MODE           Compilation mode ('single' or 'compile_except', default: 'single')
---exclude_path PATH   Path to exclude in 'compile_except' mode
---save_images         Save generated images to the output directory
---tensorboard         Enable logging metrics to TensorBoard
---wandb              Enable logging metrics to Weights and Biases
---wandb_project NAME  Weights and Biases project name (default: 'vae_diagnostic')
---wandb_run NAME     Weights and Biases run name (default: 'run_vae_test')
---list-submodules    List VAE decoder submodules hierarchically and save to a file
---model_name NAME    Name of the pretrained model to use (default: 'stabilityai/stable-diffusion-xl-base-1.0')
---gaudi_config PATH  Path to Gaudi configuration file for HPU optimization
---retest_bad_paths   Path to a file containing previously identified problematic submodule paths to re-test
+# Basic diagnostic run with HPU
+python utility_diagnostic/vae_diagnostic.py --device hpu --filter all --mode single
+
+# Save generated images with custom model
+python utility_diagnostic/vae_diagnostic.py --device hpu --save_images --model_name "custom/model/path"
+
+# Test all except specific path with Gaudi config
+python utility_diagnostic/vae_diagnostic.py --mode compile_except --exclude_path "path.to.submodule" --gaudi_config "path/to/config.json"
+
+# Enable TensorBoard logging
+python utility_diagnostic/vae_diagnostic.py --use_tensorboard
+
+# Enable Weights & Biases logging
+python utility_diagnostic/vae_diagnostic.py --use_wandb --wandb_project "my_project" --wandb_run "test_run"
+
+# List all submodules
+python utility_diagnostic/vae_diagnostic.py --list_submodules
+
+# Test specific paths from a file
+python utility_diagnostic/vae_diagnostic.py --test_paths "path/to/paths.txt"
+
+# Test specific paths from a comma-separated list
+python utility_diagnostic/vae_diagnostic.py --test_paths "path1,path2,path3"
 ```
+
+### Testing Specific Paths
+
+The tool provides flexible options for testing specific submodule paths:
+
+1. **Using a File**:
+   ```bash
+   python utility_diagnostic/vae_diagnostic.py --test_paths "path/to/paths.txt"
+   ```
+   The file should contain one submodule path per line.
+
+2. **Using Comma-Separated List**:
+   ```bash
+   python utility_diagnostic/vae_diagnostic.py --test_paths "path1,path2,path3"
+   ```
+
+3. **Automatic Retesting**:
+   - In compile_except mode, if no exclude_path is specified, the tool automatically:
+     - Looks for bad_paths.txt in the output directory
+     - Uses the paths found as exclusion paths
+     - Provides a summary of found problematic paths
+
+### Path Testing Behavior
+
+When using `--test_paths`:
+
+1. **Mode Override**:
+   - Automatically sets mode to 'single'
+   - Sets filter to 'all'
+   - Ignores other filter settings
+
+2. **Path Validation**:
+   - Verifies paths exist in the model
+   - Skips invalid paths
+   - Reports number of valid paths found
+
+3. **Output Organization**:
+   - Results organized by specified paths
+   - Metrics tracked per path
+   - Images named according to path structure
+
+### Retesting Workflow
+
+1. **Initial Test**:
+   ```bash
+   python utility_diagnostic/vae_diagnostic.py --mode single --filter all
+   ```
+
+2. **Review Results**:
+   - Check bad_paths.txt for problematic modules
+   - Review results.json for detailed metrics
+   - Analyze error messages and module types
+
+3. **Retest Specific Paths**:
+   ```bash
+   # Test specific problematic paths
+   python utility_diagnostic/vae_diagnostic.py --test_paths "path1,path2,path3"
+   
+   # Or use the bad_paths.txt file
+   python utility_diagnostic/vae_diagnostic.py --test_paths "bad_paths.txt"
+   ```
+
+4. **Compile Except Retesting**:
+   ```bash
+   # Automatically use bad_paths.txt
+   python utility_diagnostic/vae_diagnostic.py --mode compile_except
+   
+   # Or specify paths manually
+   python utility_diagnostic/vae_diagnostic.py --mode compile_except --exclude_path "path1,path2,path3"
+   ```
+
+### Best Practices for Path Testing
+
+1. Start with a full test to identify problematic paths
+2. Use `--list_submodules` to verify path names
+3. Save bad paths to a file for retesting
+4. Use compile_except mode to test module interactions
+5. Monitor metrics for specific paths
+6. Use TensorBoard to visualize path-specific results
+7. Check error messages for path-specific issues
+8. Use the CSV output to analyze path relationships
 
 ### Usage Examples
 
@@ -223,17 +341,17 @@ The VAE diagnostic tool supports the following command-line arguments:
 
 4. **Enable TensorBoard Logging**:
    ```bash
-   python utility_diagnostic/vae_diagnostic.py --tensorboard
+   python utility_diagnostic/vae_diagnostic.py --use_tensorboard
    ```
 
 5. **Enable Weights & Biases Logging**:
    ```bash
-   python utility_diagnostic/vae_diagnostic.py --wandb --wandb_project "my_project" --wandb_run "test_run"
+   python utility_diagnostic/vae_diagnostic.py --use_wandb --wandb_project "my_project" --wandb_run "test_run"
    ```
 
 6. **List All Submodules**:
    ```bash
-   python utility_diagnostic/vae_diagnostic.py --list-submodules
+   python utility_diagnostic/vae_diagnostic.py --list_submodules
    ```
 
 7. **Re-test Previously Identified Bad Paths**:
@@ -250,12 +368,12 @@ output_directory/
 ├── images/                  # Generated images (if --save_images enabled)
 │   ├── path_to_module_OK.png
 │   └── path_to_module_BLANK.png
-├── tensorboard/            # TensorBoard logs (if --tensorboard enabled)
+├── tensorboard/            # TensorBoard logs (if --use_tensorboard enabled)
 │   └── metrics/           # Hierarchical metric organization
 ├── results.json           # Detailed results in JSON format
 ├── results.csv            # Results in CSV format
 ├── bad_submodules.txt     # List of problematic submodules
-└── vae_submodules_list.txt # List of all submodules (if --list-submodules enabled)
+└── vae_submodules_list.txt # List of all submodules (if --list_submodules enabled)
 ```
 
 ### Interpreting Results
@@ -289,7 +407,7 @@ The tool provides a detailed test summary including:
 
 ### Best Practices
 
-1. Start with `--list-submodules` to understand the VAE decoder structure
+1. Start with `--list_submodules` to understand the VAE decoder structure
 2. Use `--filter leaf` for initial testing of leaf modules
 3. Enable `--save_images` to visually inspect problematic outputs
 4. Use TensorBoard or Weights & Biases for detailed performance analysis
@@ -335,19 +453,19 @@ The tool provides a detailed test summary including:
 
 Run the script with the following options:
 ```bash
-python [vae_diagnostic.py](http://_vscodecontentref_/3) --help
+python utility_diagnostic/vae_diagnostic.py --help
 ```
 
 ### Example
 
 To run diagnostics on all submodules and save images:
 ```bash
-python [vae_diagnostic.py](http://_vscodecontentref_/4) --device hpu --filter all --mode single --save_images
+python utility_diagnostic/vae_diagnostic.py --device hpu --filter all --mode single --save_images
 ```
 
 To list all submodules of the VAE decoder:
 ```bash
-python [vae_diagnostic.py](http://_vscodecontentref_/5) --list-submodules
+python utility_diagnostic/vae_diagnostic.py --list_submodules
 ```
 
 ## Output
