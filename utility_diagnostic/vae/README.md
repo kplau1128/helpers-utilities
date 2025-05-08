@@ -5,6 +5,9 @@ The VAE (Variational Autoencoder) diagnostic tool is designed to help diagnose a
 ## Table of Contents
 
 - [Key Features](#key-features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
 - [Test Parameters](#test-parameters)
 - [Compilation Modes](#compilation-modes)
   - [Using Compile Except Mode](#using-compile-except-mode)
@@ -38,6 +41,49 @@ The VAE (Variational Autoencoder) diagnostic tool is designed to help diagnose a
 - **Detailed Error Reporting**: Enhanced error messages with original module type information
 - **Comprehensive Metrics**: Per-module tracking of image statistics and compilation status
 - **Multi-path Testing**: Support for testing multiple excluded paths in compile_except mode
+
+## Requirements
+
+- Python 3.8 or higher
+- PyTorch
+- TorchVision
+- tqdm
+- TensorBoard
+- diffusers
+- optimum-habana
+- Optional: Weights and Biases (`wandb`)
+
+## Installation
+
+1. Install the required dependencies:
+   ```bash
+   pip install torch torchvision tqdm tensorboard diffusers optimum-habana
+   ```
+2. (Optional) Install Weights and Biases:
+   ```bash
+   pip install wandb
+   ```
+
+## Usage
+
+### Command-Line Arguments
+
+Run the script with the following options:
+```bash
+python vae_diagnostic.py --help
+```
+
+### Example
+
+To run diagnostics on all submodules and save images:
+```bash
+python vae_diagnostic.py --device hpu --filter all --mode single --save_images
+```
+
+To list all submodules of the VAE decoder:
+```bash
+python vae_diagnostic.py --list_submodules
+```
 
 ## Test Parameters
 

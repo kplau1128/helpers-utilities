@@ -9,10 +9,8 @@ This repository contains a collection of tools and utilities designed to assist 
   - [Project Structure](#project-structure)
     - [Files](#files)
   - [Features](#features)
-  - [VAE Diagnostic Tool](#vae-diagnostic-tool)
   - [Requirements](#requirements)
   - [Installation](#installation)
-  - [Usage](#usage)
   - [Contributing](#contributing)
   - [License](#license)
   - [Acknowledgments](#acknowledgments)
@@ -30,7 +28,7 @@ helpers-utilities/
 
 ### Files
 
-- **`utility_diagnostic/vae/vae_diagnostic.py`**: A Python script for running diagnostics on the VAE decoder submodules of a diffusion pipeline. It supports features like submodule compilation, image generation, and logging to TensorBoard or Weights and Biases.
+- **`utility_diagnostic/vae/vae_diagnostic.py`**: A Python script for running diagnostics on the VAE decoder submodules of a diffusion pipeline. For detailed documentation, please refer to the [VAE Diagnostic Tool Documentation](utility_diagnostic/vae/README.md).
 
 ## Features
 
@@ -38,10 +36,6 @@ helpers-utilities/
 - **Image Generation**: Generate images using a diffusion pipeline and check for blank outputs or errors.
 - **Logging**: Log results to TensorBoard or Weights and Biases for better visualization.
 - **Submodule Listing**: List all submodules of the VAE decoder hierarchically.
-
-## VAE Diagnostic Tool
-
-For detailed documentation about the VAE Diagnostic Tool, including features, usage, and best practices, please refer to the [VAE Diagnostic Tool Documentation](utility_diagnostic/vae/README.md).
 
 ## Requirements
 
@@ -69,27 +63,6 @@ For detailed documentation about the VAE Diagnostic Tool, including features, us
    ```bash
    pip install wandb
    ```
-
-## Usage
-
-### Command-Line Arguments
-
-Run the script with the following options:
-```bash
-python utility_diagnostic/vae/vae_diagnostic.py --help
-```
-
-### Example
-
-To run diagnostics on all submodules and save images:
-```bash
-python utility_diagnostic/vae/vae_diagnostic.py --device hpu --filter all --mode single --save_images
-```
-
-To list all submodules of the VAE decoder:
-```bash
-python utility_diagnostic/vae/vae_diagnostic.py --list_submodules
-```
 
 ## Contributing
 
