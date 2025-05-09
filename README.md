@@ -12,7 +12,6 @@ This repository contains a collection of tools and utilities designed to assist 
   - [Requirements](#requirements)
   - [Installation](#installation)
   - [Contributing](#contributing)
-  - [License](#license)
   - [Acknowledgments](#acknowledgments)
 
 ## Project Structure
@@ -20,8 +19,11 @@ This repository contains a collection of tools and utilities designed to assist 
 ```bash
 helpers-utilities/
  ├── utility_diagnostic/
- │   └── vae/
- │       ├── vae_diagnostic.py
+ │   ├── vae/
+ │   │   ├── vae_diagnostic.py
+ │   │   └── README.md
+ │   └── pipeline/
+ │       ├── pipeline_diagnostic.py
  │       └── README.md
  └── README.md
 ```
@@ -29,13 +31,15 @@ helpers-utilities/
 ### Files
 
 - **`utility_diagnostic/vae/vae_diagnostic.py`**: A Python script for running diagnostics on the VAE decoder submodules of a diffusion pipeline. For detailed documentation, please refer to the [VAE Diagnostic Tool Documentation](utility_diagnostic/vae/README.md).
+- **`utility_diagnostic/pipeline/pipeline_diagnostic.py`**: A Python script for running diagnostics on the entire Stable Diffusion pipeline submodules. For detailed documentation, please refer to the [Pipeline Diagnostic Tool Documentation](utility_diagnostic/pipeline/README.md).
 
 ## Features
 
-- **Submodule Diagnostics**: Test the effect of compiling individual submodules or all submodules except a specified path.
+- **VAE Submodule Diagnostics**: Test the effect of compiling individual VAE decoder submodules or all submodules except a specified path.
+- **Pipeline Submodule Diagnostics**: Test the effect of compiling individual pipeline submodules or all submodules except a specified path.
 - **Image Generation**: Generate images using a diffusion pipeline and check for blank outputs or errors.
 - **Logging**: Log results to TensorBoard or Weights and Biases for better visualization.
-- **Submodule Listing**: List all submodules of the VAE decoder hierarchically.
+- **Submodule Listing**: List all submodules of the VAE decoder or pipeline hierarchically.
 
 ## Requirements
 
@@ -64,6 +68,28 @@ helpers-utilities/
    pip install wandb
    ```
 
+## Quick Start
+
+### VAE Diagnostic Tool
+
+To run diagnostics on the VAE decoder:
+
+```bash
+python utility_diagnostic/vae/vae_diagnostic.py --list_submodules
+```
+
+For more details, see the [VAE Diagnostic Tool Documentation](utility_diagnostic/vae/README.md).
+
+### Pipeline Diagnostic Tool
+
+To run diagnostics on the entire pipeline:
+
+```bash
+python utility_diagnostic/pipeline/pipeline_diagnostic.py --list_submodules
+```
+
+For more details, see the [Pipeline Diagnostic Tool Documentation](utility_diagnostic/pipeline/README.md).
+
 ## Contributing
 
 Contributions are welcome! If you'd like to contribute, please follow these steps:
@@ -82,10 +108,6 @@ Contributions are welcome! If you'd like to contribute, please follow these step
    git push origin feature-name
    ```
 5. Open a pull request.
-
-## License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
 
 ## Acknowledgments
 

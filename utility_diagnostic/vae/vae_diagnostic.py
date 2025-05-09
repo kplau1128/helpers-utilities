@@ -232,21 +232,35 @@ def list_submodules(model, prefix='', depth=0):
 
     Args:
         model (nn.Module): The PyTorch module to traverse.
-        prefix (str, optional): The current path prefix, Defaults to "".
-        depth (int, optional): The current depth in the beirarchy. Defaults to 0.
+        prefix (str, optional): The current path prefix. Defaults to "".
+        depth (int, optional): The current depth in the hierarchy. Defaults to 0.
 
     Returns:
-        list: A list of strings decribing the submodules.
+        list: A list of strings describing the submodules.
     """
     lines = []
-    for name, module in model.named_children():
-        # Construct the full path and indentation
+    children = list(model.named_children())
+    
+    for i, (name, module) in enumerate(children):
+        # Determine if this is the last child
+        is_last = i == len(children) - 1
+        
+        # Construct the full path and type string
         full_name = f"{prefix}.{name}" if prefix else name
-        indent = '   ' * depth
         type_str = f"{type(module).__module__}.{type(module).__name__}"
-        lines.append(f"{indent}- {full_name}: {type_str}")
-        # Recursively list submodules
-        lines.extend(list_submodules(module, full_name, depth + 1))
+        
+        # Create the tree marker and indentation
+        marker = '└── ' if is_last else '├── '
+        indent = '    ' * depth
+        
+        # Add the current module
+        lines.append(f"{indent}{marker}{name} ({type_str})")
+        
+        # Recursively add submodules with proper indentation
+        sub_indent = indent + ('    ' if is_last else '│   ')
+        sub_lines = list_submodules(module, full_name, depth + 1)
+        lines.extend(sub_lines)
+    
     return lines
 
 
