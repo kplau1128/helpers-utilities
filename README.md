@@ -19,10 +19,18 @@ This repository contains a collection of tools and utilities designed to assist 
 ```bash
 helpers-utilities/
  ├── utility_diagnostic/
+ │   ├── utils/
+ │   │   ├── __init__.py
+ │   │   ├── arg_utils.py
+ │   │   ├── image_utils.py
+ │   │   ├── logging_utils.py
+ │   │   ├── module_utils.py
+ │   │   └── pipeline_utils.py
  │   ├── vae/
  │   │   ├── vae_diagnostic.py
  │   │   └── README.md
  │   └── pipeline/
+ │       ├── __init__.py
  │       ├── pipeline_diagnostic.py
  │       └── README.md
  └── README.md
@@ -30,6 +38,12 @@ helpers-utilities/
 
 ### Files
 
+- **`utility_diagnostic/utils/`**: A collection of utility modules that provide common functionality:
+  - `arg_utils.py`: Command-line argument parsing and validation
+  - `image_utils.py`: Image processing and manipulation utilities
+  - `logging_utils.py`: Logging configuration and management
+  - `module_utils.py`: Module manipulation and inspection utilities
+  - `pipeline_utils.py`: Pipeline-specific utility functions
 - **`utility_diagnostic/vae/vae_diagnostic.py`**: A Python script for running diagnostics on the VAE decoder submodules of a diffusion pipeline. For detailed documentation, please refer to the [VAE Diagnostic Tool Documentation](utility_diagnostic/vae/README.md).
 - **`utility_diagnostic/pipeline/pipeline_diagnostic.py`**: A Python script for running diagnostics on the entire Stable Diffusion pipeline submodules. For detailed documentation, please refer to the [Pipeline Diagnostic Tool Documentation](utility_diagnostic/pipeline/README.md).
 

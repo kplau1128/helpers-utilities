@@ -1,6 +1,6 @@
 # Pipeline Diagnostic Tool
 
-A Python utility for running diagnostics on the submodules of a Stable Diffusion pipeline. This tool helps identify which submodules can be safely compiled using the HPU backend without causing issues in image generation.
+A Python utility for running diagnostics on the submodules of a Stable Diffusion pipeline. This tool helps identify which submodules can be safely compiled using various backends (HPU, CUDA, CPU) without causing issues in image generation.
 
 ## Features
 
@@ -8,6 +8,8 @@ A Python utility for running diagnostics on the submodules of a Stable Diffusion
 - **Image Generation**: Generate images using a diffusion pipeline and check for blank outputs or errors
 - **Logging**: Log results to TensorBoard or Weights and Biases for better visualization
 - **Submodule Listing**: List all submodules of the pipeline hierarchically
+- **State Management**: Automatically manages and restores module states between tests
+- **Memory Management**: Efficient memory handling with automatic cleanup between tests
 
 ## Requirements
 
@@ -50,27 +52,13 @@ This will print the submodule hierarchy and save it to a file in the output dire
 To test compilation of individual submodules:
 
 ```bash
-python pipeline_diagnostic.py --mode single --filter all
+python pipeline_diagnostic.py --mode single --filter_type all
 ```
 
-Options for `--filter`:
+Options for `--filter_type`:
 - `all`: Test all submodules
 - `leaf`: Test only leaf modules (those with no children)
 - `non-leaf`: Test only non-leaf modules (those with children)
-
-### Test Specific Submodules
-
-To test specific submodules:
-
-```bash
-python pipeline_diagnostic.py --test_paths "path1,path2,path3"
-```
-
-Or provide a file containing paths (one per line):
-
-```bash
-python pipeline_diagnostic.py --test_paths path/to/paths.txt
-```
 
 ### Compile All Except
 
@@ -88,13 +76,16 @@ python pipeline_diagnostic.py --mode compile_except --exclude_path path/to/exclu
 
 ### Additional Options
 
-- `--output`: Directory to save diagnostic results (default: "pipeline_diagnostic_output")
-- `--device`: Device to run the pipeline on ("hpu" or "cpu", default: "hpu")
-- `--save_images`: Save generated images for each test
+- `--output_dir`: Directory to save diagnostic results (default: "pipeline_diagnostic_output")
+- `--device`: Device to run the pipeline on ("hpu", "cuda", or "cpu", default: "hpu")
+- `--log_dir`: Directory for log files
+- `--tensorboard_dir`: Directory for TensorBoard logs
 - `--use_tensorboard`: Enable TensorBoard logging
 - `--use_wandb`: Enable Weights and Biases logging
+- `--wandb_project`: Weights and Biases project name
 - `--model_name`: Name of the pretrained model to use (default: "stabilityai/stable-diffusion-xl-base-1.0")
 - `--gaudi_config`: Path to Gaudi configuration file (default: "Habana/stable-diffusion")
+- `--bad_paths_file`: File containing known problematic paths to exclude
 
 ## Output
 
@@ -104,7 +95,7 @@ The tool generates several output files in the specified output directory:
 - `results.csv`: Results in CSV format
 - `bad_paths.txt`: List of problematic submodule paths
 - `pipeline_submodules_list.txt`: Hierarchical list of all submodules
-- `images/`: Directory containing generated test images (if `--save_images` is used)
+- `images/`: Directory containing generated test images with status in filename (OK/BLANK)
 - `tensorboard/`: TensorBoard logs (if `--use_tensorboard` is used)
 
 ## Example
@@ -112,17 +103,17 @@ The tool generates several output files in the specified output directory:
 Here's a complete example that:
 1. Lists all submodules
 2. Tests compilation of leaf modules
-3. Saves generated images
-4. Uses TensorBoard for logging
+3. Uses TensorBoard for logging
+4. Excludes known problematic paths
 
 ```bash
 python pipeline_diagnostic.py \
     --list_submodules \
     --mode single \
-    --filter leaf \
-    --save_images \
+    --filter_type leaf \
     --use_tensorboard \
-    --output pipeline_test_results
+    --output_dir pipeline_test_results \
+    --bad_paths_file known_bad_paths.txt
 ```
 
 ## Contributing
