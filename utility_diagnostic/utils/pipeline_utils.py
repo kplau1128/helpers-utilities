@@ -3,6 +3,7 @@
 import os
 import torch
 import warnings
+import json
 from diffusers import StableDiffusionXLPipeline
 from optimum.habana.diffusers import (
     GaudiStableDiffusionXLPipeline,
@@ -139,7 +140,24 @@ def save_results(results, bad_paths, output_dir):
                     
         except Exception as e:
             raise IOError(f"Failed to save results to CSV: {str(e)}")
-            
+
+        # Save results to JSON
+        try:
+            json_path = os.path.join(output_dir, "results.json")
+            with open(json_path, "w") as f:
+                json.dump({
+                    "results": results,
+                    "bad_paths": bad_paths,
+                    "summary": {
+                        "total": len(results),
+                        "failed": len(bad_paths),
+                        "passed": len(result) - len(bad_paths)
+                    }
+                }, f, indent=2)
+
+        except Exception as e:
+            raise IOError(f"Failed to save results to JSON: {str(e)}")
+
         # Save bad paths to text file
         try:
             bad_paths_file = os.path.join(output_dir, "bad_paths.txt")
