@@ -228,7 +228,8 @@ def list_submodules(model, prefix='', depth=0):
     """List all submodules of a model hierarchically.
 
     This function generates a list of strings describing the submodule hierarchy,
-    including their paths and types.
+    including their paths and types. It handles cases where some submodules might
+    not have named_children() function.
 
     Args:
         model (nn.Module): The PyTorch module to traverse.
@@ -239,27 +240,53 @@ def list_submodules(model, prefix='', depth=0):
         list: A list of strings describing the submodules.
     """
     lines = []
-    children = list(model.named_children())
+    # Stack of (module, prefix, is_last, depth, vertical_lines) tuples
+    # vertical_lines is a list of booleans indicating whether to show vertical line at each level
+    stack = [(model, '', True, 0, [])]
+    # Keep track of processed modules to avoid cycles
+    processed = set()
     
-    for i, (name, module) in enumerate(children):
-        # Determine if this is the last child
-        is_last = i == len(children) - 1
+    while stack:
+        current_module, prefix, is_last, depth, vertical_lines = stack.pop()
         
-        # Construct the full path and type string
-        full_name = f"{prefix}.{name}" if prefix else name
-        type_str = f"{type(module).__module__}.{type(module).__name__}"
+        # Skip if we've already processed this module
+        if id(current_module) in processed:
+            continue
+        processed.add(id(current_module))
+        children = []
         
-        # Create the tree marker and indentation
-        marker = '└── ' if is_last else '├── '
-        indent = '    ' * depth
+        try:
+            children = list(current_module.named_children())
+        except Exception:
+            children = []
         
-        # Add the current module
-        lines.append(f"{indent}{marker}{name} ({type_str})")
+        # Sort children for consistent output
+        children.sort(key=lambda x: x[0])
         
-        # Recursively add submodules with proper indentation
-        sub_indent = indent + ('    ' if is_last else '│   ')
-        sub_lines = list_submodules(module, full_name, depth + 1)
-        lines.extend(sub_lines)
+        # Process current module if it's not the root
+        if prefix:
+            name = prefix.split('.')[-1]
+            type_str = type(current_module).__name__
+            marker = '└── ' if is_last else '├── '
+            
+            # Build indentation based on vertical_lines
+            indent = ''
+            for show_line in vertical_lines:
+                indent += '│   ' if show_line else '    '
+            
+            lines.append(f"{indent}{marker}{name} ({type_str})")
+        else:
+            name = type(current_module).__module__.split('.')[-1]
+            type_str = type(current_module).__name__
+            lines.append(f"[{name} ({type_str})]")
+        
+        # Add children to stack in reverse order
+        for i, (name, child) in enumerate(reversed(children)):
+            is_last_child = i == 0  # First in reversed list is last in original
+            full_name = f"{prefix}.{name}" if prefix else name
+            # For children, we need to show vertical line if current node is not last
+            child_vertical_lines = vertical_lines + [not is_last]
+            stack.append((child, full_name, is_last_child, depth + 1, child_vertical_lines))
     
     return lines
 
@@ -654,7 +681,6 @@ def main():
 
         submodules_list_path = os.path.join(args.output, "vae_submodules_list.txt")
         with open(submodules_list_path, "w") as f:
-            f.write("VAE Decoder Submodules:\n")
             f.write("\n".join(lines))
         print(f"Submodule list written to: {submodules_list_path}")
 

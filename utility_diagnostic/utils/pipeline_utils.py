@@ -253,20 +253,27 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
         try:
             def format_submodule_tree(module):
                 output = []
-                # Stack of (module, prefix, is_last) tuples
-                stack = [(module, '', True)]
+                # Stack of (module, prefix, is_last, depth, vertical_lines) tuples
+                # vertical_lines is a list of booleans indicating whether to show vertical line at each level
+                stack = [(module, '', True, 0, [])]
                 # Keep track of processed modules to avoid cycles
                 processed = set()
                 
                 while stack:
-                    current_module, prefix, is_last = stack.pop()
-                    
+                    current_module, prefix, is_last, depth, vertical_lines = stack.pop()
+
                     # Skip if we've already processed this module
                     if id(current_module) in processed:
                         continue
                     processed.add(id(current_module))
                     children = []
-                    
+
+                    try:
+                        # First try named_children() for direct children
+                        children.extend(current_module.named_children())
+                    except Exception:
+                        pass
+
                     # Get all attributes that are modules
                     for attr_name in dir(current_module):
                         if attr_name.startswith('_'):
@@ -274,27 +281,38 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
                         try:
                             attr = getattr(current_module, attr_name)
                             if hasattr(attr, 'named_modules') and not isinstance(attr, type):
-                                children.append((attr_name, attr))
+                                # Only add if not already in children list
+                                if not any(c[0] == attr_name for c in children):
+                                    children.append((attr_name, attr))
                         except Exception:
                             continue
                     
                     # Sort children for consistent output
-                    children.sort(key=lambda x: x[0])
-                    
+                    # children.sort(key=lambda x: x[0])
+
                     # Process current module if it's not the root
                     if prefix:
                         name = prefix.split('.')[-1]
                         type_str = type(current_module).__name__
                         marker = '└── ' if is_last else '├── '
-                        indent = '    ' * (prefix.count('.') - 1)
+
+                        # Build indentation based on vertical_lines
+                        indent = ''
+                        for show_line in vertical_lines:
+                            indent += '│   ' if show_line else '    '
+
                         output.append(f"{indent}{marker}{name} ({type_str})")
-                    
+                    else:
+                        output.append(f"{type(current_module).__name__}")
+
                     # Add children to stack in reverse order
                     for i, (name, child) in enumerate(reversed(children)):
                         is_last_child = i == 0  # First in reversed list is last in original
                         full_name = f"{prefix}.{name}" if prefix else name
-                        stack.append((child, full_name, is_last_child))
-                
+                        # For children, we need to show vertical line if current node is not last
+                        child_vertical_lines = vertical_lines + [not is_last]
+                        stack.append((child, full_name, is_last_child, depth + 1, child_vertical_lines))
+
                 return output
             
             # Generate tree structure
@@ -321,4 +339,4 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
     except Exception as e:
         if isinstance(e, RuntimeError):
             raise
-        raise RuntimeError(f"Unexpected error listing submodules: {str(e)}") 
+        raise RuntimeError(f"Unexpected error listing submodules: {str(e)}")
