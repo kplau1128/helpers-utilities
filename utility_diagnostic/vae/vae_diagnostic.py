@@ -254,14 +254,14 @@ def list_submodules(model, prefix='', depth=0):
             continue
         processed.add(id(current_module))
         children = []
-        
+
         try:
             children = list(current_module.named_children())
         except Exception:
             children = []
-        
+
         # Sort children for consistent output
-        children.sort(key=lambda x: x[0])
+        # children.sort(key=lambda x: x[0])
         
         # Process current module if it's not the root
         if prefix:
