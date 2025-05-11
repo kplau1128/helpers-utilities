@@ -171,7 +171,7 @@ def run_diagnostic(
                             test_image = torch.from_numpy(np.array(test_image)).permute(2, 0, 1).float() / 255.0
 
                     # Check if image is blank
-                    is_blank_image = is_blank(test_image)
+                    is_blank_image = is_blank(test_image, std_thredhold=0.05)
 
                     # Save test image with status in filename
                     status = "BLANK" if is_blank_image else "OK"

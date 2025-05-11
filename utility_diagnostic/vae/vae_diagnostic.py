@@ -6,6 +6,7 @@ import csv
 import os
 import copy
 from tqdm import tqdm
+from PIL import Image
 from torchvision.utils import save_image
 from torchvision.transforms import ToTensor
 from torch.utils.tensorboard import SummaryWriter
@@ -196,21 +197,63 @@ def get_submodule_orig_type(model, path):
     return getattr(submod, 'original_type', type(submod))
 
 
-def is_blank(image_tensor, threshold=1e-4):
-    """Check if an image tensor is blank based on its standard deviation.
+def is_blank(tensor,
+             std_thredhold=1e-4,
+             constant_value=None,
+             outlier_tolerance=0.0):
+    """Check if an image tensor is blank (all pixels are almost the same, or equal to a specific value).
 
-    An image is considered blank if its standard deviation is below the threshold,
-    indicatin low variation in pixel value.
+    This function supports both torch.Tensor and PIL.Image inputs, and handles
+    different tensor dimensions (batch and single images). It validates the input
+    and provides comprehensive error handling.
 
     Args:
-        image_tensor (torch.Tensor): The image tensor to check.
-        threshold (float, optional): The standard deviation threshold. Defaults to 1e-4.
+        tensor (Union[torch.Tensor, PIL.Image]): The image tensor or PIL Image to check.
+        std_threshold (float): Standard deviation threshold for blankness.
+        constant_value 9float orNone): If set, check if all pixels are (almost) this value.
+        outlier_tolerance (float): Fraction of pixels allowed to differ to from the constant value (0.0 = strict)
 
     Returns:
         bool: True if the image is blank, False otherwise.
+
+    Raises:
+        ValueError: If the input is invalid or has unexpected properties.
     """
-    #return image_tensor.mean().item() < threshold
-    return image_tensor.std().item() < threshold
+    try:
+        # Convert PIL Image to tensor if necessary
+        if isinstance(tensor, Image.Image):
+            tensor = ToTensor()(tensor)
+
+        # Validate tensor type
+        if not isinstance(tensor, torch.Tensor):
+            raise ValueError("Input must be a torch.Tensor or PIL.Image")
+
+        # Check if tensor is empty
+        if tensor.numel() == 0:
+            raise ValueError("Input tensor is empty")
+
+        # Handle batch dimension
+        if tensor.dim() == 4:  # Batch of images
+            tensor = tensor[0]  # Take first image
+        elif tensor.dim() != 3:
+            raise ValueError(f"Expected 3D tensor (C,H,W) or 4D tensor (B,C,H,W), got {tensor.dim()}D")
+
+        # Validate number of channels
+        if tensor.size(0) not in [1, 3]:
+            raise ValueError(f"Expected 1 or 3 channels, got {tensor.size(0)}")
+
+        # Option 1: Check for standard deviation (general blankness)
+        if constant_value is None:
+            return tensor.std().item() < std_thredhold
+
+        # Optiion 2: Check for a specific constant value, allowing some tolerance for outliers
+        diff = torch.abs(tensor - constant_value)
+        num_outliers = torch.sum(diff > std_thredhold).item()
+        total = tensor.numel()
+        return (num_outliers / total) <= outlier_tolerance
+
+    except Exception as e:
+        raise ValueError(f"Error checking if image is blank: {str(e)}")
 
 
 def save_image_tensor(image_tensor, path):
@@ -396,7 +439,7 @@ def run_diagnostic(model_name, gaudi_config, device, mode, filter_type, exclude_
             # Generate an image using the pipeline
             image = pipe(prompt=prompt, num_inference_steps=num_inference_steps).images[0]
             img_tensor = ToTensor()(image)
-            blank = is_blank(img_tensor, 0.05)
+            blank = is_blank(img_tensor, std_thredhold=0.05)
             result = {
                 "mode": "compile_except",
                 "paths": exclude_paths,
@@ -453,7 +496,7 @@ def run_diagnostic(model_name, gaudi_config, device, mode, filter_type, exclude_
                 # Generate an image using the pipeline
                 image = pipe(prompt=prompt, num_inference_steps=num_inference_steps).images[0]
                 img_tensor = ToTensor()(image)
-                blank = is_blank(img_tensor, 0.05)
+                blank = is_blank(img_tensor, std_thredhold=0.05)
                 result = {
                     "mode": "single",
                     "path": path,

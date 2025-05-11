@@ -7,8 +7,11 @@ from PIL import Image
 import torchvision.transforms as T
 
 
-def is_blank(tensor):
-    """Check if an image tensor is blank (all zeros or all ones).
+def is_blank(tensor,
+             std_thredhold=1e-4,
+             constant_value=None,
+             outlier_tolerance=0.0):
+    """Check if an image tensor is blank (all pixels are almost the same, or equal to a specific value).
 
     This function supports both torch.Tensor and PIL.Image inputs, and handles
     different tensor dimensions (batch and single images). It validates the input
@@ -16,6 +19,9 @@ def is_blank(tensor):
 
     Args:
         tensor (Union[torch.Tensor, PIL.Image]): The image tensor or PIL Image to check.
+        std_threshold (float): Standard deviation threshold for blankness.
+        constant_value 9float orNone): If set, check if all pixels are (almost) this value.
+        outlier_tolerance (float): Fraction of pixels allowed to differ to from the constant value (0.0 = strict)
 
     Returns:
         bool: True if the image is blank, False otherwise.
@@ -45,10 +51,17 @@ def is_blank(tensor):
         # Validate number of channels
         if tensor.size(0) not in [1, 3]:
             raise ValueError(f"Expected 1 or 3 channels, got {tensor.size(0)}")
-            
-        # Check if all values are the same
-        return torch.allclose(tensor, tensor[0, 0, 0])
-        
+
+        # Option 1: Check for standard deviation (general blankness)
+        if constant_value is None:
+            return tensor.std().item() < std_thredhold
+
+        # Optiion 2: Check for a specific constant value, allowing some tolerance for outliers
+        diff = torch.abs(tensor - constant_value)
+        num_outliers = torch.sum(diff > std_thredhold).item()
+        total = tensor.numel()
+        return (num_outliers / total) <= outlier_tolerance
+
     except Exception as e:
         raise ValueError(f"Error checking if image is blank: {str(e)}")
 
