@@ -274,11 +274,11 @@ def list_submodules(model, prefix='', depth=0):
             for show_line in vertical_lines:
                 indent += '│   ' if show_line else '    '
             
-            lines.append(f"{indent}{marker}{name} ({type_str})")
+            lines.append(f"{indent}{marker}{name} ({type_str})\n")
         else:
             name = type(current_module).__module__.split('.')[-1]
             type_str = type(current_module).__name__
-            lines.append(f"[{name} ({type_str})]")
+            lines.append(f"[{name} ({type_str})]\n")
         
         # Add children to stack in reverse order
         for i, (name, child) in enumerate(reversed(children)):
@@ -681,7 +681,7 @@ def main():
 
         submodules_list_path = os.path.join(args.output, "vae_submodules_list.txt")
         with open(submodules_list_path, "w") as f:
-            f.write("\n".join(lines))
+            f.writelines(lines)
         print(f"Submodule list written to: {submodules_list_path}")
 
     # Define output file paths

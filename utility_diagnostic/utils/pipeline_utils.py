@@ -319,9 +319,9 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
                         for show_line in vertical_lines:
                             indent += '│   ' if show_line else '    '
 
-                        output.append(f"{indent}{marker}{name} ({type_str})")
+                        output.append(f"{indent}{marker}{name} ({type_str})\n")
                     else:
-                        output.append(f"{type(current_module).__name__}")
+                        output.append(f"[{type(current_module).__name__}]\n")
 
                     # Add children to stack in reverse order
                     for i, (name, child) in enumerate(reversed(children)):
@@ -347,7 +347,7 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
             with open(output_file, "w") as f:
                 f.write("Pipeline Submodules:\n")
                 f.write("===================\n\n")
-                f.write('\n'.join(tree_output))
+                f.writelines(tree_output)
                 
         except Exception as e:
             raise RuntimeError(f"Failed to save submodule list: {str(e)}")
