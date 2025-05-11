@@ -113,8 +113,9 @@ def run_diagnostic(
     # Filter modules
     filtered_modules = filter_submodules(all_modules, filter_type)
 
-    # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
+    # Create images subdirectory
+    images_dir = os.path.join(output_dir, "images")
+    os.makedirs(images_dir, exist_ok=True)
 
     # Cleanup init pipeline
     del init_pipeline
@@ -174,7 +175,7 @@ def run_diagnostic(
 
                     # Save test image with status in filename
                     status = "BLANK" if is_blank_image else "OK"
-                    image_path = os.path.join(output_dir, f"{path.replace('.', '_')}_{status}.png")
+                    image_path = os.path.join(images_dir, f"{path.replace('.', '_')}_{status}.png")
                     save_image_tensor(test_image, image_path)
 
                     if is_blank_image:
