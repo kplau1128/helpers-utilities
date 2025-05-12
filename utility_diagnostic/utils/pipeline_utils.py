@@ -274,16 +274,37 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
                 # Stack of (module, prefix, is_last, depth, vertical_lines) tuples
                 # vertical_lines is a list of booleans indicating whether to show vertical line at each level
                 stack = [(module, '', True, 0, [])]
-                # Keep track of processed modules to avoid cycles
-                processed = set()
+                # Track visited modules and their paths
+                visited = {}
                 
                 while stack:
                     current_module, prefix, is_last, depth, vertical_lines = stack.pop()
 
-                    # Skip if we've already processed this module
-                    if id(current_module) in processed:
-                        continue
-                    processed.add(id(current_module))
+                    # Detect cyclic references and reuse modules
+                    if id(current_module) in visited:
+                        if prefix in visited[id(current_module)]:
+                            # mark as cyclic reference if the same path is visited again
+                            name = prefix.split('.')[-1] if prefix else type(current_module).__name__
+                            type_str = type(current_module).__name__
+                            marker = '└── ' if is_last else '├── '
+                            # Build indentation based on vertical_lines
+                            indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
+                            output.append(f"{indent}{marker}{name} ({type_str}) [Cyclic Reference Deteected]")
+                            continue
+                        else:
+                            # mark as reused module if visited at a different path
+                            visited[id(current_module)].append(prefix)
+                            name = prefix.split('.')[-1] if prefix else type(current_module).__name__
+                            type_str = type(current_module).__name__
+                            marker = '└── ' if is_last else '├── '
+                            # Build indentation based on vertical_lines
+                            indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
+                            output.append(f"{indent}{marker}{name} ({type_str}) [Reused Module]")
+                            continue
+                    else:
+                        # First time visiting this module
+                        visited[id(current_module)] = [prefix]
+
                     children = []
 
                     try:
@@ -313,15 +334,13 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
                         name = prefix.split('.')[-1]
                         type_str = type(current_module).__name__
                         marker = '└── ' if is_last else '├── '
-
                         # Build indentation based on vertical_lines
-                        indent = ''
-                        for show_line in vertical_lines:
-                            indent += '│   ' if show_line else '    '
-
-                        output.append(f"{indent}{marker}{name} ({type_str})\n")
+                        indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
+                        output.append(f"{indent}{marker}{name} ({type_str})")
                     else:
-                        output.append(f"[{type(current_module).__name__}]\n")
+                        name = type(current_module).__module__.split('.')[-1]
+                        type_str = type(current_module).__name__
+                        output.append(f"[{name} ({type_str})]")
 
                     # Add children to stack in reverse order
                     for i, (name, child) in enumerate(reversed(children)):
@@ -347,7 +366,7 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
             with open(output_file, "w") as f:
                 f.write("Pipeline Submodules:\n")
                 f.write("===================\n\n")
-                f.writelines(tree_output)
+                f.writelines("\n".join(tree_output))
                 
         except Exception as e:
             raise RuntimeError(f"Failed to save submodule list: {str(e)}")

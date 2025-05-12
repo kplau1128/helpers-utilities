@@ -269,7 +269,6 @@ def save_image_tensor(image_tensor, path):
 
 def list_submodules(model, prefix='', depth=0):
     """List all submodules of a model hierarchically.
-
     This function generates a list of strings describing the submodule hierarchy,
     including their paths and types. It handles cases where some submodules might
     not have named_children() function.
@@ -286,18 +285,38 @@ def list_submodules(model, prefix='', depth=0):
     # Stack of (module, prefix, is_last, depth, vertical_lines) tuples
     # vertical_lines is a list of booleans indicating whether to show vertical line at each level
     stack = [(model, '', True, 0, [])]
-    # Keep track of processed modules to avoid cycles
-    processed = set()
+    # Track visited modules and their paths
+    visited = {}
     
     while stack:
         current_module, prefix, is_last, depth, vertical_lines = stack.pop()
         
-        # Skip if we've already processed this module
-        if id(current_module) in processed:
-            continue
-        processed.add(id(current_module))
-        children = []
+        # Detect cyclic references
+        if id(current_module) in visited:
+            if prefix in visited[id(current_module)]:
+                # mark as cyclic reference if the same path is visited again
+                name = prefix.split('.')[-1] if prefix else type(current_module).__name__
+                type_str = type(current_module).__name__
+                marker = '└── ' if is_last else '├── '
+                # Build indentation based on vertical_lines
+                indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
+                lines.append(f"{indent}{marker}{name} ({type_str}) [Cyclic Reference Deteected]")
+                continue
+            else:
+                # mark as reused module if visited at a different path
+                visited[id(current_module)].append(prefix)
+                name = prefix.split('.')[-1] if prefix else type(current_module).__name__
+                type_str = type(current_module).__name__
+                marker = '└── ' if is_last else '├── '
+                # Build indentation based on vertical_lines
+                indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
+                lines.append(f"{indent}{marker}{name} ({type_str}) [Reused Module]")
+                continue
+        else:
+            # First time visiting this module
+            visited[id(current_module)] = [prefix]
 
+        children = []
         try:
             children = list(current_module.named_children())
         except Exception:
@@ -311,17 +330,13 @@ def list_submodules(model, prefix='', depth=0):
             name = prefix.split('.')[-1]
             type_str = type(current_module).__name__
             marker = '└── ' if is_last else '├── '
-            
             # Build indentation based on vertical_lines
-            indent = ''
-            for show_line in vertical_lines:
-                indent += '│   ' if show_line else '    '
-            
-            lines.append(f"{indent}{marker}{name} ({type_str})\n")
+            indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
+            lines.append(f"{indent}{marker}{name} ({type_str})")
         else:
             name = type(current_module).__module__.split('.')[-1]
             type_str = type(current_module).__name__
-            lines.append(f"[{name} ({type_str})]\n")
+            lines.append(f"[{name} ({type_str})]")
         
         # Add children to stack in reverse order
         for i, (name, child) in enumerate(reversed(children)):
@@ -724,7 +739,7 @@ def main():
 
         submodules_list_path = os.path.join(args.output, "vae_submodules_list.txt")
         with open(submodules_list_path, "w") as f:
-            f.writelines(lines)
+            f.writelines('\n'.join(lines))
         print(f"Submodule list written to: {submodules_list_path}")
 
     # Define output file paths
