@@ -91,7 +91,10 @@ The diagnostic tool uses the following default parameters for testing:
 
 - **Test Prompt**: "A picture of a dog in a bucket"
 - **Inference Steps**: 25
-- **Blank Image Threshold**: 0.05 (standard deviation)
+- **Blank Image Detection**:
+  - Standard deviation threshold: 1e-4 (default)
+  - Optional constant value check
+  - Outlier tolerance support
 - **Image Format**: PNG
 - **Test Modes**:
   - `single`: Test individual submodules
@@ -169,17 +172,23 @@ The tool provides comprehensive metrics tracking through multiple channels:
    - Per-module mean values
    - Per-module standard deviation
    - Hierarchical metric organization by module path
+   - Test duration tracking
+   - Success/failure status
 
 2. **Weights & Biases Metrics**:
    - Module-specific metrics under path-based namespaces
    - Mean and standard deviation tracking
    - Blank image detection status
    - Real-time metric visualization
+   - Test configuration tracking
+   - Performance metrics
 
 3. **File-based Logging**:
    - JSON format for detailed analysis
    - CSV format for spreadsheet processing
    - Text file for quick reference of problematic modules
+   - Hierarchical submodule listing
+   - Test summary with statistics
 
 ## Error Handling
 
@@ -189,16 +198,30 @@ The tool implements sophisticated error handling:
    - Detailed error messages with module type information
    - Original module type preservation for debugging
    - Hierarchical error tracking for multi-path tests
+   - Non-wrappable module detection (ModuleList, ModuleDict, Sequential)
 
 2. **Image Generation Errors**:
    - Blank image detection with configurable threshold
    - Zero-mean output detection
    - Per-module error status tracking
+   - Batch dimension handling
+   - Channel validation (1 or 3 channels)
+   - Tensor dimension validation
 
 3. **Module Type Errors**:
    - Automatic detection of non-wrappable modules
    - Type compatibility checking
    - Original type preservation for debugging
+   - Module hierarchy validation
+   - Path existence verification
+
+4. **Input Validation**:
+   - Tensor type checking
+   - Empty tensor detection
+   - Dimension validation
+   - Channel count validation
+   - Batch handling
+   - PIL Image conversion support
 
 ## Command-Line Arguments
 
@@ -314,7 +337,7 @@ The tool supports a retesting workflow for problematic paths:
 
 ## Output Structure
 
-The tool generates a structured output directory:
+The tool generates the following output structure:
 
 ```
 vae_diagnostic_output/

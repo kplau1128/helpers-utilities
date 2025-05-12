@@ -91,20 +91,24 @@ python pipeline_diagnostic.py --mode compile_except --exclude_path path/to/exclu
 
 The tool generates several output files in the specified output directory:
 
-- `results.json`: Detailed results in JSON format
-- `results.csv`: Results in CSV format
-- `bad_paths.txt`: List of problematic submodule paths
+- `results.json`: Detailed results in JSON format containing:
+  - Module path
+  - Module type
+  - Original module type
+  - Test status (passed/failed)
+  - Error message (if any)
+- `results.csv`: Results in CSV format for easy analysis
+- `bad_paths.txt`: List of problematic submodule paths that failed testing
 - `pipeline_submodules_list.txt`: Hierarchical list of all submodules
-- `images/`: Directory containing generated test images with status in filename (OK/BLANK)
+- `images/`: Directory containing generated test images with status in filename:
+  - `{module_path}_OK.png`: Successfully generated images
+  - `{module_path}_BLANK.png`: Blank or failed images
 - `tensorboard/`: TensorBoard logs (if `--use_tensorboard` is used)
+- `logs/`: Directory containing detailed test logs
 
 ## Example
 
-Here's a complete example that:
-1. Lists all submodules
-2. Tests compilation of leaf modules
-3. Uses TensorBoard for logging
-4. Excludes known problematic paths
+Here's a complete example that demonstrates various features:
 
 ```bash
 python pipeline_diagnostic.py \
@@ -112,9 +116,25 @@ python pipeline_diagnostic.py \
     --mode single \
     --filter_type leaf \
     --use_tensorboard \
+    --use_wandb \
+    --wandb_project "pipeline-diagnostics" \
     --output_dir pipeline_test_results \
-    --bad_paths_file known_bad_paths.txt
+    --device hpu \
+    --model_name "stabilityai/stable-diffusion-xl-base-1.0" \
+    --gaudi_config "Habana/stable-diffusion" \
+    --bad_paths_file known_bad_paths.txt \
+    --log_dir logs \
+    --tensorboard_dir tensorboard_logs
 ```
+
+This example:
+1. Lists all submodules in the pipeline
+2. Tests compilation of leaf modules only
+3. Uses both TensorBoard and Weights & Biases for logging
+4. Excludes known problematic paths
+5. Saves results in a custom output directory
+6. Uses HPU device with the specified model and configuration
+7. Generates detailed logs in separate directories
 
 ## Contributing
 
