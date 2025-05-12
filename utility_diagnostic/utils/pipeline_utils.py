@@ -319,6 +319,9 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
                             continue
                         try:
                             attr = getattr(current_module, attr_name)
+                            # Exclude self-reference
+                            if attr == current_module:
+                                continue
                             if hasattr(attr, 'named_modules') and not isinstance(attr, type):
                                 # Only add if not already in children list
                                 if not any(c[0] == attr_name for c in children):
