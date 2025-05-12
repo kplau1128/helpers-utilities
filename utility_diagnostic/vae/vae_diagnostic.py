@@ -288,6 +288,14 @@ def list_submodules(model, prefix='', depth=0):
     # Track visited modules and their paths
     visited = {}
     
+    def format_module_line(current_module, prefix, is_last, vertical_lines, extra_info=""):
+        """Format a single module line with indentation and markers."""
+        name = prefix.split('.')[-1] if prefix else type(current_module).__name__
+        type_str = type(current_module).__name__
+        marker = '└── ' if is_last else '├── '
+        indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
+        return f"{indent}{marker}{name} ({type_str}){extra_info}"
+    
     while stack:
         current_module, prefix, is_last, depth, vertical_lines = stack.pop()
         
@@ -295,22 +303,11 @@ def list_submodules(model, prefix='', depth=0):
         if id(current_module) in visited:
             if prefix in visited[id(current_module)]:
                 # mark as cyclic reference if the same path is visited again
-                name = prefix.split('.')[-1] if prefix else type(current_module).__name__
-                type_str = type(current_module).__name__
-                marker = '└── ' if is_last else '├── '
-                # Build indentation based on vertical_lines
-                indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
-                lines.append(f"{indent}{marker}{name} ({type_str}) [Cyclic Reference Deteected]")
+                lines.append(format_module_line(current_module, prefix, is_last, vertical_lines, " [Cyclic Reference Deteected]"))
                 continue
             else:
                 # mark as reused module if visited at a different path
-                visited[id(current_module)].append(prefix)
-                name = prefix.split('.')[-1] if prefix else type(current_module).__name__
-                type_str = type(current_module).__name__
-                marker = '└── ' if is_last else '├── '
-                # Build indentation based on vertical_lines
-                indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
-                lines.append(f"{indent}{marker}{name} ({type_str}) [Reused Module]")
+                lines.append(format_module_line(current_module, prefix, is_last, vertical_lines, " [Reused Module]"))
                 continue
         else:
             # First time visiting this module
@@ -326,18 +323,8 @@ def list_submodules(model, prefix='', depth=0):
         # children.sort(key=lambda x: x[0])
         
         # Process current module if it's not the root
-        if prefix:
-            name = prefix.split('.')[-1]
-            type_str = type(current_module).__name__
-            marker = '└── ' if is_last else '├── '
-            # Build indentation based on vertical_lines
-            indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
-            lines.append(f"{indent}{marker}{name} ({type_str})")
-        else:
-            name = type(current_module).__module__.split('.')[-1]
-            type_str = type(current_module).__name__
-            lines.append(f"[{name} ({type_str})]")
-        
+        lines.append(format_module_line(current_module, prefix, is_last, vertical_lines))
+
         # Add children to stack in reverse order
         for i, (name, child) in enumerate(reversed(children)):
             is_last_child = i == 0  # First in reversed list is last in original

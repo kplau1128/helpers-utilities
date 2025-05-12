@@ -267,99 +267,83 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
         # Create pipeline
         pipeline = create_pipeline(model_name, device, gaudi_config)
         
-        # List submodules
-        try:
-            def format_submodule_tree(module):
-                output = []
-                # Stack of (module, prefix, is_last, depth, vertical_lines) tuples
-                # vertical_lines is a list of booleans indicating whether to show vertical line at each level
-                stack = [(module, '', True, 0, [])]
-                # Track visited modules and their paths
-                visited = {}
-                
-                while stack:
-                    current_module, prefix, is_last, depth, vertical_lines = stack.pop()
+        # Inner function to format module line
+        def format_module_line(current_module, prefix, is_last, vertical_lines, extra_info=""):
+            """Format a single module line with indentation and markers."""
+            name = prefix.split('.')[-1] if prefix else type(current_module).__name__
+            type_str = type(current_module).__name__
+            marker = '└── ' if is_last else '├── '
+            indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
+            return f"{indent}{marker}{name} ({type_str}){extra_info}"
+        
+        # Inner function to format the submodule tree
+        def format_submodule_tree(module):
+            output = []
+            # Stack of (module, prefix, is_last, depth, vertical_lines) tuples
+            # vertical_lines is a list of booleans indicating whether to show vertical line at each level
+            stack = [(module, '', True, 0, [])]
+            # Track visited modules and their paths
+            visited = {}
+            
+            while stack:
+                current_module, prefix, is_last, depth, vertical_lines = stack.pop()
 
-                    # Detect cyclic references and reuse modules
-                    if id(current_module) in visited:
-                        if prefix in visited[id(current_module)]:
-                            # mark as cyclic reference if the same path is visited again
-                            name = prefix.split('.')[-1] if prefix else type(current_module).__name__
-                            type_str = type(current_module).__name__
-                            marker = '└── ' if is_last else '├── '
-                            # Build indentation based on vertical_lines
-                            indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
-                            output.append(f"{indent}{marker}{name} ({type_str}) [Cyclic Reference Deteected]")
-                            continue
-                        else:
-                            # mark as reused module if visited at a different path
-                            visited[id(current_module)].append(prefix)
-                            name = prefix.split('.')[-1] if prefix else type(current_module).__name__
-                            type_str = type(current_module).__name__
-                            marker = '└── ' if is_last else '├── '
-                            # Build indentation based on vertical_lines
-                            indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
-                            output.append(f"{indent}{marker}{name} ({type_str}) [Reused Module]")
-                            continue
+                # Detect cyclic references and reuse modules
+                if id(current_module) in visited:
+                    if prefix in visited[id(current_module)]:
+                        output.append(format_module_line(current_module, prefix, is_last, vertical_lines, " [Cyclic Reference Deteected]"))
+                        continue
                     else:
-                        # First time visiting this module
-                        visited[id(current_module)] = [prefix]
+                        # mark as reused module if visited at a different path
+                        visited[id(current_module)].append(prefix)
+                        output.append(format_module_line(current_module, prefix, is_last, vertical_lines, "[Reused Module]"))
+                        continue
+                else:
+                    # First time visiting this module
+                    visited[id(current_module)] = [prefix]
 
-                    children = []
+                children = []
 
+                try:
+                    # First try named_children() for direct children
+                    children.extend(current_module.named_children())
+                except Exception:
+                    pass
+
+                # Get all attributes that are modules
+                for attr_name in dir(current_module):
+                    if attr_name.startswith('_'):
+                        continue
                     try:
-                        # First try named_children() for direct children
-                        children.extend(current_module.named_children())
+                        attr = getattr(current_module, attr_name)
+                        # Exclude self-reference
+                        if attr == current_module:
+                            continue
+                        if hasattr(attr, 'named_modules') and not isinstance(attr, type):
+                            # Only add if not already in children list
+                            if not any(c[0] == attr_name for c in children):
+                                children.append((attr_name, attr))
                     except Exception:
-                        pass
+                        continue
+                
+                # Sort children for consistent output
+                # children.sort(key=lambda x: x[0])
 
-                    # Get all attributes that are modules
-                    for attr_name in dir(current_module):
-                        if attr_name.startswith('_'):
-                            continue
-                        try:
-                            attr = getattr(current_module, attr_name)
-                            # Exclude self-reference
-                            if attr == current_module:
-                                continue
-                            if hasattr(attr, 'named_modules') and not isinstance(attr, type):
-                                # Only add if not already in children list
-                                if not any(c[0] == attr_name for c in children):
-                                    children.append((attr_name, attr))
-                        except Exception:
-                            continue
-                    
-                    # Sort children for consistent output
-                    # children.sort(key=lambda x: x[0])
+                # Process current module 
+                output.append(format_module_line(current_module, prefix, is_last, vertical_lines))
 
-                    # Process current module if it's not the root
-                    if prefix:
-                        name = prefix.split('.')[-1]
-                        type_str = type(current_module).__name__
-                        marker = '└── ' if is_last else '├── '
-                        # Build indentation based on vertical_lines
-                        indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
-                        output.append(f"{indent}{marker}{name} ({type_str})")
-                    else:
-                        name = type(current_module).__module__.split('.')[-1]
-                        type_str = type(current_module).__name__
-                        output.append(f"[{name} ({type_str})]")
+                # Add children to stack in reverse order
+                for i, (name, child) in enumerate(reversed(children)):
+                    is_last_child = i == 0  # First in reversed list is last in original
+                    full_name = f"{prefix}.{name}" if prefix else name
+                    # For children, we need to show vertical line if current node is not last
+                    child_vertical_lines = vertical_lines + [not is_last]
+                    stack.append((child, full_name, is_last_child, depth + 1, child_vertical_lines))
 
-                    # Add children to stack in reverse order
-                    for i, (name, child) in enumerate(reversed(children)):
-                        is_last_child = i == 0  # First in reversed list is last in original
-                        full_name = f"{prefix}.{name}" if prefix else name
-                        # For children, we need to show vertical line if current node is not last
-                        child_vertical_lines = vertical_lines + [not is_last]
-                        stack.append((child, full_name, is_last_child, depth + 1, child_vertical_lines))
-
-                return output
-            
-            # Generate tree structure
-            tree_output = format_submodule_tree(pipeline)
-            
-        except Exception as e:
-            raise RuntimeError(f"Failed to list submodules: {str(e)}")
+            return output
+        
+        # Generate tree structure
+        tree_output = format_submodule_tree(pipeline)
             
         # Save to file
         try:
