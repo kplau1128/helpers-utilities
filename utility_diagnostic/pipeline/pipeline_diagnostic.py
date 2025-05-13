@@ -64,7 +64,8 @@ def run_diagnostic(
     gaudi_config: Optional[str] = None,
     logger: Optional[Any] = None,
     writer: Optional[Any] = None,
-    wandb_run: Optional[Any] = None
+    wandb_run: Optional[Any] = None,
+    root_modules: Optional[List[str]] = None
 ) -> tuple[List[Dict[str, Any]], List[str]]:
     """Run diagnostic tests on a diffusion model.
 
@@ -80,6 +81,7 @@ def run_diagnostic(
         logger (Optional[Any]): Logger instance.
         writer (Optional[Any]): TensorBoard writer.
         wandb_run (Optional[Any]): Weights & Biases run.
+        root_modules (Optional[List[str]]): List of paths to modules to use as roots for diagnostics. If None, uses the entire pipeline.
 
     Returns:
         tuple[List[Dict[str, Any]], List[str]]: Test results and bad paths.
@@ -107,16 +109,27 @@ def run_diagnostic(
     # Create pipeline
     init_pipeline = create_pipeline(model_name, device, gaudi_config)
 
+    # If root_modules is specified, get those modules as roots
+    if root_modules:
+        all_modules = []
+        for root_module in root_modules:
+            root = init_pipeline
+            for part in root_module.split('.'):
+                root = getattr(root, part)
+            root_submodules = list(get_all_submodules(root))
+            # Adjust paths to be relative to the root module
+            root_submodules = [(f"{root_module}.{path}" if path else root_module, module) for path, module in root_submodules]
+            all_modules.extend(root_submodules)
+    else:
+        all_modules = list(get_all_submodules(init_pipeline))
+
     # Store original module states for resetting
     original_states = {}
-    for path, module in get_all_submodules(init_pipeline):
+    for path, module in all_modules:
         original_states[path] = {
             "state": copy.deepcopy(module.state_dict()),
             "type": type(module)
         }
-
-    # Get all submodules
-    all_modules = list(get_all_submodules(init_pipeline))
 
     # Filter modules based on test_paths if provided
     if paths_to_test:
@@ -256,7 +269,8 @@ def main():
                 gaudi_config=args.gaudi_config,
                 logger=logger,
                 writer=writer,
-                wandb_run=wandb_run
+                wandb_run=wandb_run,
+                root_modules=args.root_modules.split(',') if args.root_modules else None
             )
 
             # Save results

@@ -73,6 +73,11 @@ def parse_arguments() -> argparse.Namespace:
             type=str,
             help="Specific path(s) to test. Can be a comma-separated list of paths or a file containing paths to test."
         )
+        parser.add_argument(
+            "--root_modules",
+            type=str,
+            help="Comma-separated list of module paths to use as roots for diagnostics. If not specified, uses the entire pipeline."
+        )
         
         # Output settings
         parser.add_argument(
@@ -253,4 +258,4 @@ def validate_args(args: argparse.Namespace) -> None:
     except Exception as e:
         if isinstance(e, ValueError):
             raise
-        raise ValueError(f"Unexpected error validating arguments: {str(e)}") 
+        raise ValueError(f"Unexpected error validating arguments: {str(e)}")

@@ -77,6 +77,26 @@ python pipeline_diagnostic.py --test_paths "path1,path2,path3"
 python pipeline_diagnostic.py --test_paths path/to/paths.txt
 ```
 
+### Test Specific Root Modules
+
+To test specific parts of the pipeline by specifying root modules:
+
+```bash
+# Test specific major components
+python pipeline_diagnostic.py --root_modules "unet,text_encoder,vae"
+
+# Test specific submodules
+python pipeline_diagnostic.py --root_modules "unet.attention,text_encoder.layers"
+
+# Test multiple non-overlapping parts
+python pipeline_diagnostic.py --root_modules "unet.down_blocks,unet.up_blocks"
+```
+
+The root_modules option allows you to:
+- Focus diagnostics on specific parts of the pipeline
+- Test multiple components simultaneously
+- Combine with other options like filter_type and mode
+
 ### Compile All Except
 
 To compile all submodules except specified ones:
@@ -104,6 +124,7 @@ python pipeline_diagnostic.py --mode compile_except --exclude_path path/to/exclu
 - `--gaudi_config`: Path to Gaudi configuration file (default: "Habana/stable-diffusion")
 - `--bad_paths_file`: File containing known problematic paths to exclude
 - `--test_paths`: Specific path(s) to test (comma-separated list or file)
+- `--root_modules`: Comma-separated list of module paths to use as roots for diagnostics
 
 ## Test Parameters
 
