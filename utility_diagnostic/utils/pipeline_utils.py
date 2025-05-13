@@ -287,9 +287,6 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
         RuntimeError: If there are issues with the pipeline or file operations.
     """
     try:
-        # Create pipeline
-        pipeline = create_pipeline(model_name, device, gaudi_config)
-        
         # Inner function to format module line
         def format_module_line(current_module, prefix, is_last, vertical_lines, extra_info=""):
             """Format a single module line with indentation and markers."""
@@ -298,7 +295,7 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
             marker = '└── ' if is_last else '├── '
             indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
             return f"{indent}{marker}{name} ({type_str}){extra_info}"
-        
+
         # Inner function to format the submodule tree
         def format_submodule_tree(module):
             output = []
@@ -307,7 +304,7 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
             stack = [(module, '', True, 0, [])]
             # Track visited modules and their paths
             visited = {}
-            
+
             while stack:
                 current_module, prefix, is_last, depth, vertical_lines = stack.pop()
 
@@ -319,7 +316,7 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
                     else:
                         # mark as reused module if visited at a different path
                         visited[id(current_module)].append(prefix)
-                        output.append(format_module_line(current_module, prefix, is_last, vertical_lines, "[Reused Module]"))
+                        output.append(format_module_line(current_module, prefix, is_last, vertical_lines, " [Reused Module]"))
                         continue
                 else:
                     # First time visiting this module
@@ -348,7 +345,7 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
                                 children.append((attr_name, attr))
                     except Exception:
                         continue
-                
+
                 # Sort children for consistent output
                 # children.sort(key=lambda x: x[0])
 
@@ -364,25 +361,26 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
                     stack.append((child, full_name, is_last_child, depth + 1, child_vertical_lines))
 
             return output
-        
-        # Generate tree structure
-        tree_output = format_submodule_tree(pipeline)
-            
-        # Save to file
-        try:
-            os.makedirs(output_dir, exist_ok=True)
-            output_file = os.path.join(output_dir, "submodules.txt")
-            
-            with open(output_file, "w") as f:
-                f.write("Pipeline Submodules:\n")
-                f.write("====================\n")
-                f.writelines("\n".join(tree_output))
-                
-        except Exception as e:
-            raise RuntimeError(f"Failed to save submodule list: {str(e)}")
-            
-        return tree_output
-        
+
+        # Generate tree structure using pipeline context manager
+        with pipeline_context(model_name, device, gaudi_config) as pipeline:
+            tree_output = format_submodule_tree(pipeline)
+
+            # Save to file
+            try:
+                os.makedirs(output_dir, exist_ok=True)
+                output_file = os.path.join(output_dir, "submodules.txt")
+
+                with open(output_file, "w") as f:
+                    f.write("Pipeline Submodules:\n")
+                    f.write("====================\n")
+                    f.writelines("\n".join(tree_output))
+
+            except Exception as e:
+                raise RuntimeError(f"Failed to save submodule list: {str(e)}")
+
+            return tree_output
+
     except Exception as e:
         if isinstance(e, RuntimeError):
             raise
