@@ -10,6 +10,8 @@ A Python utility for running diagnostics on the submodules of a Stable Diffusion
 - **Submodule Listing**: List all submodules of the pipeline hierarchically
 - **State Management**: Automatically manages and restores module states between tests
 - **Memory Management**: Efficient memory handling with automatic cleanup between tests
+- **Flexible Testing**: Support for testing specific paths or groups of paths
+- **Comprehensive Error Handling**: Detailed error reporting and state preservation
 
 ## Requirements
 
@@ -60,6 +62,21 @@ Options for `--filter_type`:
 - `leaf`: Test only leaf modules (those with no children)
 - `non-leaf`: Test only non-leaf modules (those with children)
 
+### Test Specific Paths
+
+To test specific submodule paths:
+
+```bash
+# Test a single path
+python pipeline_diagnostic.py --test_paths "path.to.module"
+
+# Test multiple paths (comma-separated)
+python pipeline_diagnostic.py --test_paths "path1,path2,path3"
+
+# Test paths from a file (one path per line)
+python pipeline_diagnostic.py --test_paths path/to/paths.txt
+```
+
 ### Compile All Except
 
 To compile all submodules except specified ones:
@@ -86,6 +103,22 @@ python pipeline_diagnostic.py --mode compile_except --exclude_path path/to/exclu
 - `--model_name`: Name of the pretrained model to use (default: "stabilityai/stable-diffusion-xl-base-1.0")
 - `--gaudi_config`: Path to Gaudi configuration file (default: "Habana/stable-diffusion")
 - `--bad_paths_file`: File containing known problematic paths to exclude
+- `--test_paths`: Specific path(s) to test (comma-separated list or file)
+
+## Test Parameters
+
+The diagnostic tool uses the following default parameters for testing:
+
+- **Test Prompt**: "A picture of a dog in a bucket"
+- **Inference Steps**: 5
+- **Blank Image Detection**:
+  - Standard deviation threshold: 0.05
+  - Automatic conversion between tensor and PIL Image formats
+  - Support for both single images and batches
+- **State Management**:
+  - Deep copy of module states for clean testing
+  - Automatic state restoration between tests
+  - Memory cleanup after each test
 
 ## Output
 
@@ -123,6 +156,7 @@ python pipeline_diagnostic.py \
     --model_name "stabilityai/stable-diffusion-xl-base-1.0" \
     --gaudi_config "Habana/stable-diffusion" \
     --bad_paths_file known_bad_paths.txt \
+    --test_paths "path/to/test_paths.txt" \
     --log_dir logs \
     --tensorboard_dir tensorboard_logs
 ```
@@ -132,9 +166,35 @@ This example:
 2. Tests compilation of leaf modules only
 3. Uses both TensorBoard and Weights & Biases for logging
 4. Excludes known problematic paths
-5. Saves results in a custom output directory
-6. Uses HPU device with the specified model and configuration
-7. Generates detailed logs in separate directories
+5. Tests specific paths from a file
+6. Saves results in a custom output directory
+7. Uses HPU device with the specified model and configuration
+8. Generates detailed logs in separate directories
+
+## Error Handling
+
+The tool implements comprehensive error handling:
+
+1. **Module State Management**:
+   - Deep copy of module states for clean testing
+   - Automatic state restoration between tests
+   - Memory cleanup after each test
+
+2. **Image Generation**:
+   - Automatic format conversion (PIL Image ↔ Tensor)
+   - Batch dimension handling
+   - Blank image detection
+   - Error status tracking
+
+3. **Path Testing**:
+   - Support for both file and comma-separated path lists
+   - Path existence validation
+   - Automatic path filtering
+
+4. **Memory Management**:
+   - Automatic CUDA cache clearing
+   - Pipeline cleanup between tests
+   - Resource deallocation
 
 ## Contributing
 

@@ -60,7 +60,7 @@ def run_diagnostic(
     filter_type: str,
     output_dir: str,
     exclude_path: Optional[str] = None,
-    bad_paths_file: Optional[str] = None,
+    test_paths: Optional[str] = None,
     gaudi_config: Optional[str] = None,
     logger: Optional[Any] = None,
     writer: Optional[Any] = None,
@@ -75,7 +75,7 @@ def run_diagnostic(
         filter_type (str): Type of modules to test ("all", "leaf", or "non-leaf").
         output_dir (str): Directory to save test results.
         exclude_path (Optional[str]): Path to exclude from testing.
-        bad_paths_file (Optional[str]): File containing paths to exclude.
+        test_paths (Optional[str]): Specific path(s) to test. Can be a comma-separated list of paths or a file containing paths to test.
         gaudi_config (Optional[str]): Path to Gaudi configuration file.
         logger (Optional[Any]): Logger instance.
         writer (Optional[Any]): TensorBoard writer.
@@ -88,13 +88,21 @@ def run_diagnostic(
     results = []
     bad_paths = []
 
+    # Get paths to test
+    paths_to_test = []
+    if test_paths:
+        # Check if test_paths is a file
+        if os.path.exists(test_paths) and os.path.isfile(test_paths):
+            with open(test_paths, 'r') as f:
+                paths_to_test.extend([line.strip() for line in f if line.strip()])
+        else:
+            # Assume it's a comma-separated list of paths
+            paths_to_test.extend([path.strip() for path in test_paths.split(',') if path.strip()])
+
     # Get excluded paths
     exclude_paths = []
     if exclude_path:
         exclude_paths.append(exclude_path)
-    if bad_paths_file and os.path.exists(bad_paths_file):
-        with open(bad_paths_file, 'r') as f:
-            exclude_paths.extend([line.strip() for line in f])
 
     # Create pipeline
     init_pipeline = create_pipeline(model_name, device, gaudi_config)
@@ -110,8 +118,11 @@ def run_diagnostic(
     # Get all submodules
     all_modules = list(get_all_submodules(init_pipeline))
 
-    # Filter modules
-    filtered_modules = filter_submodules(all_modules, filter_type)
+    # Filter modules based on test_paths if provided
+    if paths_to_test:
+        filtered_modules = [(path, module) for path, module in all_modules if path in paths_to_test]
+    else:
+        filtered_modules = filter_submodules(all_modules, filter_type)
 
     # Create images subdirectory
     images_dir = os.path.join(output_dir, "images")
@@ -241,7 +252,7 @@ def main():
                 filter_type=args.filter_type,
                 output_dir=args.output_dir,
                 exclude_path=args.exclude_path,
-                bad_paths_file=args.bad_paths_file,
+                test_paths=args.test_paths,
                 gaudi_config=args.gaudi_config,
                 logger=logger,
                 writer=writer,

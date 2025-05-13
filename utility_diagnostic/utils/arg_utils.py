@@ -69,9 +69,9 @@ def parse_arguments() -> argparse.Namespace:
             help="Path to exclude from compilation (for compile_except mode)"
         )
         parser.add_argument(
-            "--bad_paths_file",
+            "--test_paths",
             type=str,
-            help="File containing paths to exclude (for compile_except mode)"
+            help="Specific path(s) to test. Can be a comma-separated list of paths or a file containing paths to test."
         )
         
         # Output settings
@@ -120,14 +120,24 @@ def parse_arguments() -> argparse.Namespace:
             
         # Validate argument combinations
         if args.mode == "compile_except":
-            if not args.exclude_path and not args.bad_paths_file:
+            if not args.exclude_path and not args.test_paths:
                 raise ValueError(
-                    "compile_except mode requires either --exclude_path or --bad_paths_file"
+                    "compile_except mode requires either --exclude_path or --test_paths"
                 )
                 
         # Validate paths
-        if args.bad_paths_file and not os.path.exists(args.bad_paths_file):
-            raise ValueError(f"Bad paths file not found: {args.bad_paths_file}")
+        if args.test_paths:
+            # Check if it's a file path
+            if os.path.exists(args.test_paths) and os.path.isfile(args.test_paths):
+                # Validate that the file exists and is readable
+                try:
+                    with open(args.test_paths, 'r') as f:
+                        # Just check if we can read it
+                        f.readline()
+                except Exception as e:
+                    raise ValueError(f"Test paths file exists but cannot be read: {str(e)}")
+            # If not a file, assume it's a comma-separated list of paths
+            # No validation needed for direct paths as they'll be validated during testing
             
         # Set default Gaudi config for HPU
         if args.device == "hpu" and not args.gaudi_config:
@@ -179,8 +189,8 @@ def get_config_from_args(args: argparse.Namespace) -> Dict[str, Any]:
             config["gaudi_config"] = args.gaudi_config
         if args.exclude_path:
             config["exclude_path"] = args.exclude_path
-        if args.bad_paths_file:
-            config["bad_paths_file"] = args.bad_paths_file
+        if args.test_paths:
+            config["test_paths"] = args.test_paths
             
         return config
         
