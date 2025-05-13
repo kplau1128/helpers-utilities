@@ -4,6 +4,8 @@ import os
 import torch
 import warnings
 import json
+from typing import Any, Optional, ContextManager
+from contextlib import contextmanager
 from diffusers import StableDiffusionXLPipeline
 from optimum.habana.diffusers import (
     GaudiStableDiffusionXLPipeline,
@@ -85,6 +87,27 @@ def create_pipeline(model_name, device, gaudi_config=None):
         if isinstance(e, (ValueError, RuntimeError)):
             raise
         raise RuntimeError(f"Unexpected error creating pipeline: {str(e)}")
+
+
+@contextmanager
+def pipeline_context(model_name: str, device: str, gaudi_config: Optional[str] = None) -> ContextManager[Any]:
+    """Context manager for pipeline creation and cleanup.
+
+    Args:
+        model_name (str): Name of the model to create.
+        device (str): Device to run the model on.
+        gaudi_config (Optional[str]): Path to Gaudi configuration file.
+
+    Yields:
+        Any: The created pipeline.
+    """
+    pipeline = create_pipeline(model_name, device, gaudi_config)
+    try:
+        yield pipeline
+    finally:
+        del pipeline
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 def save_results(results, bad_paths, output_dir):
@@ -352,7 +375,7 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
             
             with open(output_file, "w") as f:
                 f.write("Pipeline Submodules:\n")
-                f.write("===================\n\n")
+                f.write("====================\n")
                 f.writelines("\n".join(tree_output))
                 
         except Exception as e:

@@ -726,6 +726,7 @@ def main():
 
         submodules_list_path = os.path.join(args.output, "vae_submodules_list.txt")
         with open(submodules_list_path, "w") as f:
+            f.write("VAE Decoder Submodules:\n")
             f.writelines('\n'.join(lines))
         print(f"Submodule list written to: {submodules_list_path}")
 

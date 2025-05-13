@@ -12,6 +12,9 @@ import torch
 import numpy as np
 import copy
 from typing import List, Dict, Any, Optional
+import logging
+from torch.utils.tensorboard import SummaryWriter
+import wandb
 
 # Get the package root directory
 package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,9 +34,10 @@ from utils import (
     # Image utilities
     is_blank,
     save_image_tensor,
+    convert_to_tensor,
 
     # Pipeline utilities
-    create_pipeline,
+    pipeline_context,
     save_results,
     print_test_summary,
     list_pipeline_submodules,
@@ -62,10 +66,13 @@ def run_diagnostic(
     exclude_path: Optional[str] = None,
     test_paths: Optional[str] = None,
     gaudi_config: Optional[str] = None,
-    logger: Optional[Any] = None,
-    writer: Optional[Any] = None,
-    wandb_run: Optional[Any] = None,
-    root_modules: Optional[List[str]] = None
+    logger: Optional[logging.Logger] = None,
+    writer: Optional[SummaryWriter] = None,
+    wandb_run: Optional[wandb.run] = None,
+    root_modules: Optional[List[str]] = None,
+    test_prompt: str = "A picture of a dog in a bucket",
+    num_inference_steps: int = 50,
+    std_threshold: float = 0.05
 ) -> tuple[List[Dict[str, Any]], List[str]]:
     """Run diagnostic tests on a diffusion model.
 
@@ -78,10 +85,13 @@ def run_diagnostic(
         exclude_path (Optional[str]): Path to exclude from testing.
         test_paths (Optional[str]): Specific path(s) to test. Can be a comma-separated list of paths or a file containing paths to test.
         gaudi_config (Optional[str]): Path to Gaudi configuration file.
-        logger (Optional[Any]): Logger instance.
-        writer (Optional[Any]): TensorBoard writer.
-        wandb_run (Optional[Any]): Weights & Biases run.
+        logger (Optional[logging.Logger]): Logger instance.
+        writer (Optional[SummaryWriter]): TensorBoard writer.
+        wandb_run (Optional[wandb.run]): Weights & Biases run.
         root_modules (Optional[List[str]]): List of paths to modules to use as roots for diagnostics. If None, uses the entire pipeline.
+        test_prompt (str): The prompt to use for testing the model.
+        num_inference_steps (int): Number of inference steps to run for each test.
+        std_threshold (float): Threshold for determining if an image is blank.
 
     Returns:
         tuple[List[Dict[str, Any]], List[str]]: Test results and bad paths.
@@ -106,30 +116,29 @@ def run_diagnostic(
     if exclude_path:
         exclude_paths.append(exclude_path)
 
-    # Create pipeline
-    init_pipeline = create_pipeline(model_name, device, gaudi_config)
+    # Create initial pipeline and get modules
+    with pipeline_context(model_name, device, gaudi_config) as init_pipeline:
+        # If root_modules is specified, get those modules as roots
+        if root_modules:
+            all_modules = []
+            for root_module in root_modules:
+                root = init_pipeline
+                for part in root_module.split('.'):
+                    root = getattr(root, part)
+                root_submodules = list(get_all_submodules(root))
+                # Adjust paths to be relative to the root module
+                root_submodules = [(f"{root_module}.{path}" if path else root_module, module) for path, module in root_submodules]
+                all_modules.extend(root_submodules)
+        else:
+            all_modules = list(get_all_submodules(init_pipeline))
 
-    # If root_modules is specified, get those modules as roots
-    if root_modules:
-        all_modules = []
-        for root_module in root_modules:
-            root = init_pipeline
-            for part in root_module.split('.'):
-                root = getattr(root, part)
-            root_submodules = list(get_all_submodules(root))
-            # Adjust paths to be relative to the root module
-            root_submodules = [(f"{root_module}.{path}" if path else root_module, module) for path, module in root_submodules]
-            all_modules.extend(root_submodules)
-    else:
-        all_modules = list(get_all_submodules(init_pipeline))
-
-    # Store original module states for resetting
-    original_states = {}
-    for path, module in all_modules:
-        original_states[path] = {
-            "state": copy.deepcopy(module.state_dict()),
-            "type": type(module)
-        }
+        # Store original module states for resetting
+        original_states = {}
+        for path, module in all_modules:
+            original_states[path] = {
+                "state": copy.deepcopy(module.state_dict()),
+                "type": type(module)
+            }
 
     # Filter modules based on test_paths if provided
     if paths_to_test:
@@ -141,11 +150,6 @@ def run_diagnostic(
     images_dir = os.path.join(output_dir, "images")
     os.makedirs(images_dir, exist_ok=True)
 
-    # Cleanup init pipeline
-    del init_pipeline
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-
     # Run tests
     with Timer("Testing", logger, writer, wandb_run):
         for path, module in filtered_modules:
@@ -154,83 +158,77 @@ def run_diagnostic(
                 if path in exclude_paths:
                     continue
 
-                # Recreate flesh pipeline for each test
-                pipeline = create_pipeline(model_name, device, gaudi_config)
+                # Create fresh pipeline for each test
+                with pipeline_context(model_name, device, gaudi_config) as pipeline:
+                    # Get module types
+                    module_type = get_submodule_type(pipeline, path)
+                    orig_type = get_submodule_orig_type(pipeline, path)
 
-                # Get module types
-                module_type = get_submodule_type(pipeline, path)
-                orig_type = get_submodule_orig_type(pipeline, path)
+                    # Reset pipeline state
+                    for mod_path, state in original_states.items():
+                        mod = pipeline
+                        for part in mod_path.split("."):
+                            mod = getattr(mod, part)
+                        mod.load_state_dict(state["state"])
 
-                # Reset pipeline state
-                for mod_path, state in original_states.items():
-                    mod = pipeline
-                    for part in mod_path.split("."):
-                        mod = getattr(mod, part)
-                    mod.load_state_dict(state["state"])
+                    # Test module
+                    if mode == "compile_except":
+                        # Apply compilation to all modules except this one
+                        apply_compile_except(pipeline, path)
+                    else:  # single mode
+                        # Apply compilation only to this module
+                        apply_compile_to_path(pipeline, path)
 
-                # Test module
-                if mode == "compile_except":
-                    # Apply compilation to all modules except this one
-                    apply_compile_except(pipeline, path)
-                else:  # single mode
-                    # Apply compilation only to this module
-                    apply_compile_to_path(pipeline, path)
+                    # Run test
+                    with torch.no_grad():
+                        # Generate test image
+                        output = pipeline(
+                            prompt=test_prompt,
+                            num_inference_steps=num_inference_steps
+                        )
 
-                # Run test
-                with torch.no_grad():
-                    # Generate test image
-                    output = pipeline(
-                        prompt = "A picture of a dog in a bucket",
-                        num_inference_steps=5
-                    )
+                        # Convert output to tensor
+                        if hasattr(output, 'images'):
+                            test_image = convert_to_tensor(output.images[0])
+                        else:
+                            test_image = convert_to_tensor(output[0])
 
-                    # Convert output to tensor if needed
-                    if hasattr(output, 'images'):
-                        test_image = output.images[0]
-                        if not isinstance(test_image, torch.Tensor):
-                            test_image = torch.from_numpy(np.array(test_image)).permute(2, 0, 1).float() / 255.0
-                    else:
-                        test_image = output[0]
-                        if not isinstance(test_image, torch.Tensor):
-                            test_image = torch.from_numpy(np.array(test_image)).permute(2, 0, 1).float() / 255.0
+                        # Check if image is blank
+                        is_blank_image = is_blank(test_image, std_threshold=std_threshold)
 
-                    # Check if image is blank
-                    is_blank_image = is_blank(test_image, std_thredhold=0.05)
+                        # Save test image with status in filename
+                        status = "BLANK" if is_blank_image else "OK"
+                        image_path = os.path.join(images_dir, f"{path.replace('.', '_')}_{status}.png")
+                        save_image_tensor(test_image, image_path)
 
-                    # Save test image with status in filename
-                    status = "BLANK" if is_blank_image else "OK"
-                    image_path = os.path.join(images_dir, f"{path.replace('.', '_')}_{status}.png")
-                    save_image_tensor(test_image, image_path)
+                        if is_blank_image:
+                            raise RuntimeError("Generated image is blank")
 
-                    if is_blank_image:
-                        raise RuntimeError("Generated image is blank")
-
-                # Log success
-                result = {
-                    "path": path,
-                    "type": module_type,
-                    "original_type": orig_type,
-                    "status": "passed",
-                    "error": ""
-                }
+                    # Log success
+                    result = {
+                        "path": path,
+                        "type": module_type,
+                        "original_type": orig_type,
+                        "status": "passed",
+                        "error": ""
+                    }
 
             except Exception as e:
-                # Log failure
+                # Log failure with detailed error information
+                error_msg = f"{type(e).__name__}: {str(e)}"
+                if logger:
+                    logger.error(f"Test failed for path {path}: {error_msg}")
+                
                 result = {
                     "path": path,
                     "type": module_type,
                     "original_type": orig_type,
                     "status": "failed",
-                    "error": str(e)
+                    "error": error_msg
                 }
                 bad_paths.append(path)
 
             results.append(result)
-
-            # Clean up pipeline
-            del pipeline
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
 
     return results, bad_paths
 
@@ -270,7 +268,10 @@ def main():
                 logger=logger,
                 writer=writer,
                 wandb_run=wandb_run,
-                root_modules=args.root_modules.split(',') if args.root_modules else None
+                root_modules=args.root_modules.split(',') if args.root_modules else None,
+                test_prompt=args.test_prompt if hasattr(args, 'test_prompt') else "A picture of a dog in a bucket",
+                num_inference_steps=args.num_inference_steps if hasattr(args, 'num_inference_steps') else 50,
+                std_threshold=args.std_threshold if hasattr(args, 'std_threshold') else 0.05
             )
 
             # Save results
@@ -279,12 +280,22 @@ def main():
             # Print summary
             print_test_summary(results, bad_paths)
 
+            # Log metrics if enabled
+            if writer or wandb_run:
+                log_metrics(results, writer, wandb_run)
+
+        except Exception as e:
+            error_msg = f"Error during diagnostic testing: {type(e).__name__}: {str(e)}"
+            if logger:
+                logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
+
         finally:
-            # Clean up logging
+            # Cleanup
             cleanup_logging(logger, writer, wandb_run)
 
     except Exception as e:
-        print(f"Error: {str(e)}", file=sys.stderr)
+        print(f"Fatal error: {type(e).__name__}: {str(e)}")
         sys.exit(1)
 
 

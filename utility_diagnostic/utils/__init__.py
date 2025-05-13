@@ -25,6 +25,7 @@ from .module_utils import (
 from .image_utils import (
     is_blank,
     save_image_tensor,
+    convert_to_tensor,
     tensor_to_pil,
     pil_to_tensor,
     normalize_tensor,
@@ -33,6 +34,7 @@ from .image_utils import (
 
 from .pipeline_utils import (
     create_pipeline,
+    pipeline_context,
     save_results,
     print_test_summary,
     list_pipeline_submodules
@@ -68,6 +70,7 @@ __all__ = [
     # Image utilities
     "is_blank",
     "save_image_tensor",
+    "convert_to_tensor",
     "tensor_to_pil",
     "pil_to_tensor",
     "normalize_tensor",
@@ -75,6 +78,7 @@ __all__ = [
     
     # Pipeline utilities
     "create_pipeline",
+    "pipeline_context",
     "save_results",
     "print_test_summary",
     "list_pipeline_submodules",

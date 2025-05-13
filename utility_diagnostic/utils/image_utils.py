@@ -3,12 +3,13 @@
 import os
 import torch
 import numpy as np
+from typing import Any, Union
 from PIL import Image
 import torchvision.transforms as T
 
 
 def is_blank(tensor,
-             std_thredhold=1e-4,
+             std_threshold=1e-4,
              constant_value=None,
              outlier_tolerance=0.0):
     """Check if an image tensor is blank (all pixels are almost the same, or equal to a specific value).
@@ -54,11 +55,11 @@ def is_blank(tensor,
 
         # Option 1: Check for standard deviation (general blankness)
         if constant_value is None:
-            return tensor.std().item() < std_thredhold
+            return tensor.std().item() < std_threshold
 
         # Optiion 2: Check for a specific constant value, allowing some tolerance for outliers
         diff = torch.abs(tensor - constant_value)
-        num_outliers = torch.sum(diff > std_thredhold).item()
+        num_outliers = torch.sum(diff > std_threshold).item()
         total = tensor.numel()
         return (num_outliers / total) <= outlier_tolerance
 
@@ -119,6 +120,33 @@ def save_image_tensor(tensor, output_path):
         if isinstance(e, ValueError):
             raise
         raise IOError(f"Error saving image to {output_path}: {str(e)}")
+
+
+def convert_to_tensor(image: Union[torch.Tensor, np.ndarray, Any]) -> torch.Tensor:
+    """Convert various image formats to a standardized torch tensor.
+
+    Args:
+        image: Input image in any supported format (torch.Tensor, numpy array, or PIL Image)
+
+    Returns:
+        torch.Tensor: Standardized image tensor in format [C, H, W] with values in [0, 1]
+
+    Raises:
+        ValueError: If the image format is not supported
+    """
+    if isinstance(image, torch.Tensor):
+        return image
+
+    try:
+        # Convert to numpy array if not already
+        if not isinstance(image, np.ndarray):
+            image = np.array(image)
+
+        # Convert to tensor and normalize
+        tensor = torch.from_numpy(image).permute(2, 0, 1).float() / 255.0
+        return tensor
+    except Exception as e:
+        raise ValueError(f"Failed to convert image to tensor: {str(e)}")
 
 
 def tensor_to_pil(tensor):
