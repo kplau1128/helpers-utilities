@@ -2,7 +2,7 @@
 
 import torch
 import torch.nn as nn
-from typing import Generator, Tuple, Any
+from typing import Generator, Tuple, Any, Union, List
 
 
 class CompiledWrapper(nn.Module):
@@ -240,16 +240,21 @@ def apply_compile_to_path(module: nn.Module, target_path: str, prefix: str = "")
                         continue
 
 
-def apply_compile_except(module: nn.Module, skip_path: str, prefix: str = ""):
-    """Apply compilation to all submodules except the one at the specified path.
+def apply_compile_except(module: nn.Module, skip_paths: Union[str, List[str]], prefix: str = ""):
+    """Apply compilation to all submodules except the ones at the specified paths.
 
     Args:
         module (nn.Module): The root PyTorch module to traverse.
-        skip_path (str): The path of the submodule to skip.
+        skip_paths (Union[str, List[str]]): The path(s) of the submodule(s) to skip.
+            Can be a single path string or a list of path strings.
         prefix (str, optional): The current path prefix. Defaults to "".
     """
-    # Skip if this is the target path
-    if prefix == skip_path:
+    # Convert single path to list for uniform handling
+    if isinstance(skip_paths, str):
+        skip_paths = [skip_paths]
+
+    # Skip if this is one of the target paths
+    if prefix in skip_paths:
         return
 
     # Try different methods to find and compile modules
@@ -257,18 +262,18 @@ def apply_compile_except(module: nn.Module, skip_path: str, prefix: str = ""):
         # Method 1: Try named_children()
         for name, sub in module.named_children():
             path = f"{prefix}.{name}" if prefix else name
-            if path != skip_path and is_wrappable_module(sub):
+            if path not in skip_paths and is_wrappable_module(sub):
                 setattr(module, name, CompiledWrapper(sub))
-            apply_compile_except(sub, skip_path, path)
+            apply_compile_except(sub, skip_paths, path)
     except (AttributeError, TypeError):
         try:
             # Method 2: Try __dict__
             for name, sub in module.__dict__.items():
                 if isinstance(sub, nn.Module):
                     path = f"{prefix}.{name}" if prefix else name
-                    if path != skip_path and is_wrappable_module(sub):
+                    if path not in skip_paths and is_wrappable_module(sub):
                         setattr(module, name, CompiledWrapper(sub))
-                    apply_compile_except(sub, skip_path, path)
+                    apply_compile_except(sub, skip_paths, path)
         except (AttributeError, TypeError):
             # Method 3: Try direct attributes
             for name in dir(module):
@@ -277,9 +282,9 @@ def apply_compile_except(module: nn.Module, skip_path: str, prefix: str = ""):
                         sub = getattr(module, name)
                         if isinstance(sub, nn.Module):
                             path = f"{prefix}.{name}" if prefix else name
-                            if path != skip_path and is_wrappable_module(sub):
+                            if path not in skip_paths and is_wrappable_module(sub):
                                 setattr(module, name, CompiledWrapper(sub))
-                            apply_compile_except(sub, skip_path, path)
+                            apply_compile_except(sub, skip_paths, path)
                     except (AttributeError, TypeError):
                         continue
 

@@ -82,7 +82,7 @@ def run_diagnostic(
         mode (str): Test mode ("single" or "compile_except").
         filter_type (str): Type of modules to test ("all", "leaf", or "non-leaf").
         output_dir (str): Directory to save test results.
-        exclude_path (Optional[str]): Path to exclude from testing.
+        exclude_path (Optional[str]): Path(s) to exclude from testing. Can be a comma-separated list of paths or a file containing paths to exclude.
         test_paths (Optional[str]): Specific path(s) to test. Can be a comma-separated list of paths or a file containing paths to test.
         gaudi_config (Optional[str]): Path to Gaudi configuration file.
         logger (Optional[logging.Logger]): Logger instance.
@@ -168,8 +168,8 @@ def run_diagnostic(
             # Create fresh pipeline for compile_except mode
             with pipeline_context(model_name, device, gaudi_config) as pipeline:
                 try:
-                    # Apply compilation to all modules except excluded path
-                    pipeline = apply_compile_except(pipeline, exclude_path)
+                    # Apply compilation to all modules except excluded paths
+                    pipeline = apply_compile_except(pipeline, exclude_paths)
                     
                     # Run test with compiled pipeline
                     with torch.no_grad():
