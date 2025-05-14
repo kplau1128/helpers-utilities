@@ -174,9 +174,9 @@ def save_results(results, bad_paths, output_dir):
                     "summary": {
                         "total": len(results),
                         "failed": len(bad_paths),
-                        "passed": len(result) - len(bad_paths)
+                        "passed": len(results) - len(bad_paths)
                     }
-                }, f, indent=2)
+                }, f, indent=4)
 
         except Exception as e:
             raise IOError(f"Failed to save results to JSON: {str(e)}")
@@ -272,7 +272,7 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
     """List all submodules of a pipeline and save them to a file.
 
     This function creates a pipeline, lists its submodules, and saves the list
-    to a file. It provides comprehensive error handling.
+    to both text and JSON files. It provides comprehensive error handling.
 
     Args:
         model_name (str): The name or path of the model to load.
@@ -298,32 +298,10 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
 
         # Inner function to format the submodule tree
         def format_submodule_tree(module):
-            output = []
-            # Stack of (module, prefix, is_last, depth, vertical_lines) tuples
-            # vertical_lines is a list of booleans indicating whether to show vertical line at each level
-            stack = [(module, '', True, 0, [])]
-            # Track visited modules and their paths
-            visited = {}
 
-            while stack:
-                current_module, prefix, is_last, depth, vertical_lines = stack.pop()
-
-                # Detect cyclic references and reuse modules
-                if id(current_module) in visited:
-                    if prefix in visited[id(current_module)]:
-                        output.append(format_module_line(current_module, prefix, is_last, vertical_lines, " [Cyclic Reference Deteected]"))
-                        continue
-                    else:
-                        # mark as reused module if visited at a different path
-                        visited[id(current_module)].append(prefix)
-                        output.append(format_module_line(current_module, prefix, is_last, vertical_lines, " [Reused Module]"))
-                        continue
-                else:
-                    # First time visiting this module
-                    visited[id(current_module)] = [prefix]
-
+            def get_children(current_module):
+                """Get all child modules of the current module."""
                 children = []
-
                 try:
                     # First try named_children() for direct children
                     children.extend(current_module.named_children())
@@ -345,36 +323,147 @@ def list_pipeline_submodules(model_name, gaudi_config, device, output_dir):
                                 children.append((attr_name, attr))
                     except Exception:
                         continue
+                return children
 
-                # Sort children for consistent output
-                # children.sort(key=lambda x: x[0])
+            # Generate text tree
+            def build_text_tree(root_module):
+                """Build the text representation of the module tree using a stack."""
+                output = []
+                # Stack of (module, prefix, is_last, depth, vertical_lines) tuples
+                # vertical_lines is a list of booleans indicating whether to show vertical line at each level
+                stack = [(root_module, '', True, 0, [])]
+                # Track visited modules and their paths
+                visited = {}
 
-                # Process current module 
-                output.append(format_module_line(current_module, prefix, is_last, vertical_lines))
+                while stack:
+                    current_module, prefix, is_last, depth, vertical_lines = stack.pop()
 
-                # Add children to stack in reverse order
-                for i, (name, child) in enumerate(reversed(children)):
-                    is_last_child = i == 0  # First in reversed list is last in original
+                    # Check for cyclic references and reused modules
+                    if id(current_module) in visited:
+                        if prefix in visited[id(current_module)]:
+                            output.append(format_module_line(current_module, prefix, is_last, vertical_lines, " [Cyclic Reference Deteected]"))
+                            continue
+                        else:
+                            # mark as reused module if visited at a different path
+                            visited[id(current_module)].append(prefix)
+                            output.append(format_module_line(current_module, prefix, is_last, vertical_lines, " [Reused Module]"))
+                            continue
+                    else:
+                        # First time visiting this module
+                        visited[id(current_module)] = [prefix]
+                        output.append(format_module_line(current_module, prefix, is_last, vertical_lines))
+
+                    # Get children
+                    children = get_children(current_module)
+
+                    # Add children to stack in reverse order (so they're processed in correct order)
+                    for i, (name, child) in enumerate(reversed(children)):
+                        is_last_child = i == 0  # First in reversed list is last in original
+                        full_name = f"{prefix}.{name}" if prefix else name
+                        # For children, we need to show vertical line if current node is not last
+                        child_vertical_lines = vertical_lines + [not is_last]
+                        stack.append((child, full_name, is_last_child, depth + 1, child_vertical_lines))
+                return output
+
+            # Generate JSON tree
+            json_visited = {}
+
+            def build_json_tree(current_module, prefix, is_last, depth, vertical_lines):
+                """Build the JSON representation of the module tree."""
+                module_dict = {
+                    "name": prefix.split('.')[-1] if prefix else type(current_module).__name__,
+                    "type": type(current_module).__name__,
+                    "path": prefix,
+                    "is_last": is_last,
+                    "depth": depth,
+                    "children": []
+                }
+
+                # Detect cyclic references and reuse modules
+                if id(current_module) in json_visited:
+                    if prefix in json_visited[id(current_module)]:
+                        module_dict["status"] = "cyclic_reference"
+                        return module_dict
+                    else:
+                        # mark as reused module if visited at a different path
+                        json_visited[id(current_module)].append(prefix)
+                        module_dict["status"] = "reused"
+                        return module_dict
+                else:
+                    # First time visiting this module
+                    json_visited[id(current_module)] = [prefix]
+                    module_dict["status"] = "normal"
+
+                # Get and process children
+                children = get_children(current_module)
+                for i, (name, child) in enumerate(children):
+                    is_last_child = i == len(children) - 1
                     full_name = f"{prefix}.{name}" if prefix else name
                     # For children, we need to show vertical line if current node is not last
                     child_vertical_lines = vertical_lines + [not is_last]
-                    stack.append((child, full_name, is_last_child, depth + 1, child_vertical_lines))
+                    child_dict = build_json_tree(child, full_name, is_last_child, depth + 1, child_vertical_lines)
+                    module_dict["children"].append(child_dict)
 
-            return output
+                return module_dict
+
+            # Build both trees
+            text_output = build_text_tree(module)
+            json_output = build_json_tree(module, '', True, 0, [])
+
+            return text_output, json_output
+
+        def count_modules(module_dict):
+            """Count modules in the tree and collect statistics."""
+            stats = {
+                "total": 1,  # Count current module
+                "paths": {module_dict["path"]},
+                "reused": 1 if module_dict.get("status") == "reused" else 0,
+                "cyclic": 1 if module_dict.get("status") == "cyclic_reference" else 0
+            }
+
+            # Recursively count children
+            for child in module_dict["children"]:
+                child_stats = count_modules(child)
+                stats["total"] += child_stats["total"]
+                stats["paths"].update(child_stats["paths"])
+                stats["reused"] += child_stats["reused"]
+                stats["cyclic"] += child_stats["cyclic"]
+
+            return stats
 
         # Generate tree structure using pipeline context manager
         with pipeline_context(model_name, device, gaudi_config) as pipeline:
-            tree_output = format_submodule_tree(pipeline)
+            tree_output, json_output = format_submodule_tree(pipeline)
 
-            # Save to file
+            # Calculate statistics from the JSON tree
+            stats = count_modules(json_output)
+
+            # Save to files
             try:
                 os.makedirs(output_dir, exist_ok=True)
-                output_file = os.path.join(output_dir, "submodules.txt")
 
+                # Save text format
+                output_file = os.path.join(output_dir, "submodules.txt")
                 with open(output_file, "w") as f:
                     f.write("Pipeline Submodules:\n")
                     f.write("====================\n")
                     f.writelines("\n".join(tree_output))
+
+                # Save JSON format
+                json_file = os.path.join(output_dir, "submodules.json")
+                with open(json_file, "w") as f:
+                    json.dump({
+                        "model_name": model_name,
+                        "device": device,
+                        "gaudi_config": gaudi_config,
+                        "module_tree": json_output,
+                        "statistics": {
+                            "total_modules": stats["total"],
+                            "unique_modules": len(stats["paths"]),
+                            "reused_modules": stats["reused"],
+                            "cyclic_references": stats["cyclic"]
+                        }
+                    }, f, indent=4)
 
             except Exception as e:
                 raise RuntimeError(f"Failed to save submodule list: {str(e)}")
