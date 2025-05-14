@@ -114,7 +114,19 @@ def run_diagnostic(
     # Get excluded paths
     exclude_paths = []
     if exclude_path:
-        exclude_paths.append(exclude_path)
+        # Check if exclude_path is a file
+        if os.path.exists(exclude_path) and os.path.isfile(exclude_path):
+            with open(exclude_path, 'r') as f:
+                exclude_paths.extend([line.strip() for line in f if line.strip()])
+        else:
+            # Assume it's a comma-separated list of paths
+            exclude_paths.extend([path.strip() for path in exclude_path.split(',') if path.strip()])
+    else:
+        # Try to load from bad_paths.txt if it exists
+        bad_paths_file = os.path.join(output_dir, "bad_paths.txt")
+        if os.path.exists(bad_paths_file):
+            with open(bad_paths_file, 'r') as f:
+                exclude_paths.extend([line.strip() for line in f if line.strip()])
 
     # Create initial pipeline and get modules
     with pipeline_context(model_name, device, gaudi_config) as init_pipeline:

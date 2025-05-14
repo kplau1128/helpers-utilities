@@ -124,11 +124,11 @@ def parse_arguments() -> argparse.Namespace:
             raise ValueError(f"Failed to parse arguments: {str(e)}")
             
         # Validate argument combinations
-        if args.mode == "compile_except":
-            if not args.exclude_path and not args.test_paths:
-                raise ValueError(
-                    "compile_except mode requires either --exclude_path or --test_paths"
-                )
+        # if args.mode == "compile_except":
+        #     if not args.exclude_path and not args.test_paths:
+        #         raise ValueError(
+        #             "compile_except mode requires either --exclude_path or --test_paths"
+        #         )
                 
         # Validate paths
         if args.test_paths:
