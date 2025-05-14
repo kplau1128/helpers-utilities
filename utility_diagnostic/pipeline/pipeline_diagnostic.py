@@ -164,34 +164,14 @@ def run_diagnostic(
 
     # Run tests
     with Timer("Testing", logger, writer, wandb_run):
-        for path, module in filtered_modules:
-            try:
-                # Skip excluded paths
-                if path in exclude_paths:
-                    continue
-
-                # Create fresh pipeline for each test
-                with pipeline_context(model_name, device, gaudi_config) as pipeline:
-                    # Get module types
-                    module_type = get_submodule_type(pipeline, path)
-                    orig_type = get_submodule_orig_type(pipeline, path)
-
-                    # Reset pipeline state
-                    for mod_path, state in original_states.items():
-                        mod = pipeline
-                        for part in mod_path.split("."):
-                            mod = getattr(mod, part)
-                        mod.load_state_dict(state["state"])
-
-                    # Test module
-                    if mode == "compile_except":
-                        # Apply compilation to all modules except this one
-                        apply_compile_except(pipeline, path)
-                    else:  # single mode
-                        # Apply compilation only to this module
-                        apply_compile_to_path(pipeline, path)
-
-                    # Run test
+        if mode == "compile_except":
+            # Create fresh pipeline for compile_except mode
+            with pipeline_context(model_name, device, gaudi_config) as pipeline:
+                try:
+                    # Apply compilation to all modules except excluded path
+                    pipeline = apply_compile_except(pipeline, exclude_path)
+                    
+                    # Run test with compiled pipeline
                     with torch.no_grad():
                         # Generate test image
                         output = pipeline(
@@ -210,7 +190,8 @@ def run_diagnostic(
 
                         # Save test image with status in filename
                         status = "BLANK" if is_blank_image else "OK"
-                        image_path = os.path.join(images_dir, f"{path.replace('.', '_')}_{status}.png")
+                        paths_str = "_".join(p.replace('.', '_') for p in exclude_paths) if exclude_paths else "all"
+                        image_path = os.path.join(images_dir, f"except_{paths_str}_{status}.png")
                         save_image_tensor(test_image, image_path)
 
                         if is_blank_image:
@@ -218,29 +199,102 @@ def run_diagnostic(
 
                     # Log success
                     result = {
-                        "path": path,
-                        "type": module_type,
-                        "original_type": orig_type,
+                        "mode": "compile_except",
+                        "paths": exclude_paths,
                         "status": "passed",
                         "error": ""
                     }
 
-            except Exception as e:
-                # Log failure with detailed error information
-                error_msg = f"{type(e).__name__}: {str(e)}"
-                if logger:
-                    logger.error(f"Test failed for path {path}: {error_msg}")
-                
-                result = {
-                    "path": path,
-                    "type": module_type,
-                    "original_type": orig_type,
-                    "status": "failed",
-                    "error": error_msg
-                }
-                bad_paths.append(path)
+                except Exception as e:
+                    # Log failure with detailed error information
+                    error_msg = f"{type(e).__name__}: {str(e)}"
+                    if logger:
+                        logger.error(f"Test failed for compile_except mode: {error_msg}")
+                    
+                    result = {
+                        "mode": "compile_except",
+                        "paths": exclude_paths,
+                        "status": "failed",
+                        "error": error_msg
+                    }
+                    # Add all excluded paths to bad_paths
+                    bad_paths.extend(exclude_paths)
 
-            results.append(result)
+                results.append(result)
+
+        else:  # single mode
+            for path, module in filtered_modules:
+                try:
+                    # Skip excluded paths
+                    if path in exclude_paths:
+                        continue
+
+                    # Create fresh pipeline for each test
+                    with pipeline_context(model_name, device, gaudi_config) as pipeline:
+                        # Get module types
+                        module_type = get_submodule_type(pipeline, path)
+                        orig_type = get_submodule_orig_type(pipeline, path)
+
+                        # Reset pipeline state
+                        for mod_path, state in original_states.items():
+                            mod = pipeline
+                            for part in mod_path.split("."):
+                                mod = getattr(mod, part)
+                            mod.load_state_dict(state["state"])
+
+                        # Apply compilation only to this module
+                        apply_compile_to_path(pipeline, path)
+
+                        # Run test
+                        with torch.no_grad():
+                            # Generate test image
+                            output = pipeline(
+                                prompt=test_prompt,
+                                num_inference_steps=num_inference_steps
+                            )
+
+                            # Convert output to tensor
+                            if hasattr(output, 'images'):
+                                test_image = convert_to_tensor(output.images[0])
+                            else:
+                                test_image = convert_to_tensor(output[0])
+
+                            # Check if image is blank
+                            is_blank_image = is_blank(test_image, std_threshold=std_threshold)
+
+                            # Save test image with status in filename
+                            status = "BLANK" if is_blank_image else "OK"
+                            image_path = os.path.join(images_dir, f"{path.replace('.', '_')}_{status}.png")
+                            save_image_tensor(test_image, image_path)
+
+                            if is_blank_image:
+                                raise RuntimeError("Generated image is blank")
+
+                        # Log success
+                        result = {
+                            "path": path,
+                            "type": module_type,
+                            "original_type": orig_type,
+                            "status": "passed",
+                            "error": ""
+                        }
+
+                except Exception as e:
+                    # Log failure with detailed error information
+                    error_msg = f"{type(e).__name__}: {str(e)}"
+                    if logger:
+                        logger.error(f"Test failed for path {path}: {error_msg}")
+                    
+                    result = {
+                        "path": path,
+                        "type": module_type,
+                        "original_type": orig_type,
+                        "status": "failed",
+                        "error": error_msg
+                    }
+                    bad_paths.append(path)
+
+                results.append(result)
 
     return results, bad_paths
 
