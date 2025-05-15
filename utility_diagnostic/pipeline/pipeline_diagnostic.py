@@ -228,7 +228,6 @@ def run_diagnostic(
                     bad_paths.extend(exclude_paths)
                     # Clear module cache after error
                     clear_module_cache()
-                    raise e
 
                 results.append(result)
 
@@ -308,7 +307,6 @@ def run_diagnostic(
                     bad_paths.append(path)
                     # Clear module cache after error
                     clear_module_cache()
-                    raise e
 
                 results.append(result)
 
