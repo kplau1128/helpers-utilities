@@ -2,8 +2,10 @@
 
 import torch
 import torch.nn as nn
-from typing import Generator, Tuple, Any, Union, List
+from typing import Generator, Tuple, Any, Union, List, Dict
 
+# Global cache for wrapped modules to prevent multiple wrapping
+_module_cache: Dict[int, 'CompiledWrapper'] = {}
 
 class CompiledWrapper(nn.Module):
     """A wrapper class to compile a PyTorch module using the HPU backend.
@@ -193,6 +195,39 @@ def is_wrappable_module(module: nn.Module) -> bool:
         return False
 
 
+def get_wrapped_module(module: nn.Module) -> Union[CompiledWrapper, nn.Module]:
+    """Get a wrapped version of the module, using cache if available.
+
+    Args:
+        module (nn.Module): The module to wrap.
+
+    Returns:
+        Union[CompiledWrapper, nn.Module]: The wrapped module or original if wrapping fails.
+    """
+    module_id = id(module)
+    
+    # Return cached wrapper if available
+    if module_id in _module_cache:
+        return _module_cache[module_id]
+    
+    # Create new wrapper if module is wrappable
+    if is_wrappable_module(module):
+        try:
+            wrapped = CompiledWrapper(module)
+            _module_cache[module_id] = wrapped
+            return wrapped
+        except Exception as e:
+            print(f"Warning: Failed to compile module {type(module).__name__}: {str(e)}")
+    
+    return module
+
+
+def clear_module_cache():
+    """Clear the module cache."""
+    global _module_cache
+    _module_cache.clear()
+
+
 def apply_compile_to_path(module: nn.Module, target_path: str, prefix: str = ""):
     """Apply compilation to a specific submodule at the given path.
 
@@ -205,20 +240,13 @@ def apply_compile_to_path(module: nn.Module, target_path: str, prefix: str = "")
         nn.Module: The module with compilation applied to the target submodule.
     """
     # First check if this is the target module
-    if prefix == target_path and is_wrappable_module(module):
-        try:
-            return CompiledWrapper(module)
-        except Exception as e:
-            print(f"Warning: Failed to compile module {type(module).__name__}: {str(e)}")
-            return module
+    if prefix == target_path:
+        return get_wrapped_module(module)
 
     def try_compile_submodule(sub, path):
         """Helper function to try compiling a submodule."""
-        if path == target_path and is_wrappable_module(sub):
-            try:
-                return CompiledWrapper(sub)
-            except Exception as e:
-                print(f"Warning: Failed to compile module {path}: {str(e)}")
+        if path == target_path:
+            return get_wrapped_module(sub)
         return sub
 
     # Try different methods to find and compile the target
@@ -278,11 +306,8 @@ def apply_compile_except(module: nn.Module, skip_paths: Union[str, List[str]], p
         skip_paths = [skip_paths]
 
     # Handle root module compilation if not in skip paths
-    if prefix == "" and is_wrappable_module(module):
-        try:
-            module = CompiledWrapper(module)
-        except Exception as e:
-            print(f"Warning: Failed to compile root module {type(module).__name__}: {str(e)}")
+    if prefix == "" and prefix not in skip_paths:
+        module = get_wrapped_module(module)
 
     # Skip if this is one of the target paths
     if prefix in skip_paths:
@@ -290,11 +315,8 @@ def apply_compile_except(module: nn.Module, skip_paths: Union[str, List[str]], p
 
     def try_compile_submodule(sub, path):
         """Helper function to try compiling a submodule."""
-        if path not in skip_paths and is_wrappable_module(sub):
-            try:
-                return CompiledWrapper(sub)
-            except Exception as e:
-                print(f"Warning: Failed to compile module {path}: {str(e)}")
+        if path not in skip_paths:
+            return get_wrapped_module(sub)
         return sub
 
     # Try different methods to find and compile modules

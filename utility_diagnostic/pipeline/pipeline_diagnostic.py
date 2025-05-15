@@ -30,6 +30,7 @@ from utils import (
     apply_compile_except,
     get_submodule_type,
     get_submodule_orig_type,
+    clear_module_cache,
 
     # Image utilities
     is_blank,
@@ -96,6 +97,9 @@ def run_diagnostic(
     Returns:
         tuple[List[Dict[str, Any]], List[str]]: Test results and bad paths.
     """
+    # Clear module cache before starting diagnostics
+    clear_module_cache()
+
     # Initialize results and bad paths
     results = []
     bad_paths = []
@@ -168,6 +172,9 @@ def run_diagnostic(
             # Create fresh pipeline for compile_except mode
             with pipeline_context(model_name, device, gaudi_config) as pipeline:
                 try:
+                    # Clear module cache before applying compilation
+                    clear_module_cache()
+                    
                     # Apply compilation to all modules except excluded paths
                     pipeline = apply_compile_except(pipeline, exclude_paths)
                     
@@ -219,6 +226,9 @@ def run_diagnostic(
                     }
                     # Add all excluded paths to bad_paths
                     bad_paths.extend(exclude_paths)
+                    # Clear module cache after error
+                    clear_module_cache()
+                    raise e
 
                 results.append(result)
 
@@ -231,6 +241,9 @@ def run_diagnostic(
 
                     # Create fresh pipeline for each test
                     with pipeline_context(model_name, device, gaudi_config) as pipeline:
+                        # Clear module cache before each test
+                        clear_module_cache()
+                        
                         # Get module types
                         module_type = get_submodule_type(pipeline, path)
                         orig_type = get_submodule_orig_type(pipeline, path)
@@ -293,9 +306,15 @@ def run_diagnostic(
                         "error": error_msg
                     }
                     bad_paths.append(path)
+                    # Clear module cache after error
+                    clear_module_cache()
+                    raise e
 
                 results.append(result)
 
+    # Clear module cache after all tests are done
+    clear_module_cache()
+    
     return results, bad_paths
 
 
