@@ -200,18 +200,35 @@ def apply_compile_to_path(module: nn.Module, target_path: str, prefix: str = "")
         module (nn.Module): The root PyTorch module to traverse.
         target_path (str): The path to the target submodule.
         prefix (str, optional): The current path prefix. Defaults to "".
+
+    Returns:
+        nn.Module: The module with compilation applied to the target submodule.
     """
     # First check if this is the target module
     if prefix == target_path and is_wrappable_module(module):
-        return CompiledWrapper(module)
+        try:
+            return CompiledWrapper(module)
+        except Exception as e:
+            print(f"Warning: Failed to compile module {type(module).__name__}: {str(e)}")
+            return module
+
+    def try_compile_submodule(sub, path):
+        """Helper function to try compiling a submodule."""
+        if path == target_path and is_wrappable_module(sub):
+            try:
+                return CompiledWrapper(sub)
+            except Exception as e:
+                print(f"Warning: Failed to compile module {path}: {str(e)}")
+        return sub
 
     # Try different methods to find and compile the target
     try:
         # Method 1: Try named_children()
         for name, sub in module.named_children():
             path = f"{prefix}.{name}" if prefix else name
-            if path == target_path and is_wrappable_module(sub):
-                setattr(module, name, CompiledWrapper(sub))
+            compiled_sub = try_compile_submodule(sub, path)
+            if compiled_sub is not sub:
+                setattr(module, name, compiled_sub)
             else:
                 apply_compile_to_path(sub, target_path, path)
     except (AttributeError, TypeError):
@@ -220,8 +237,9 @@ def apply_compile_to_path(module: nn.Module, target_path: str, prefix: str = "")
             for name, sub in module.__dict__.items():
                 if isinstance(sub, nn.Module):
                     path = f"{prefix}.{name}" if prefix else name
-                    if path == target_path and is_wrappable_module(sub):
-                        setattr(module, name, CompiledWrapper(sub))
+                    compiled_sub = try_compile_submodule(sub, path)
+                    if compiled_sub is not sub:
+                        setattr(module, name, compiled_sub)
                     else:
                         apply_compile_to_path(sub, target_path, path)
         except (AttributeError, TypeError):
@@ -232,12 +250,15 @@ def apply_compile_to_path(module: nn.Module, target_path: str, prefix: str = "")
                         sub = getattr(module, name)
                         if isinstance(sub, nn.Module):
                             path = f"{prefix}.{name}" if prefix else name
-                            if path == target_path and is_wrappable_module(sub):
-                                setattr(module, name, CompiledWrapper(sub))
+                            compiled_sub = try_compile_submodule(sub, path)
+                            if compiled_sub is not sub:
+                                setattr(module, name, compiled_sub)
                             else:
                                 apply_compile_to_path(sub, target_path, path)
                     except (AttributeError, TypeError):
                         continue
+
+    return module
 
 
 def apply_compile_except(module: nn.Module, skip_paths: Union[str, List[str]], prefix: str = ""):
@@ -248,22 +269,42 @@ def apply_compile_except(module: nn.Module, skip_paths: Union[str, List[str]], p
         skip_paths (Union[str, List[str]]): The path(s) of the submodule(s) to skip.
             Can be a single path string or a list of path strings.
         prefix (str, optional): The current path prefix. Defaults to "".
+
+    Returns:
+        nn.Module: The module with compilation applied to all non-skipped submodules.
     """
     # Convert single path to list for uniform handling
     if isinstance(skip_paths, str):
         skip_paths = [skip_paths]
 
+    # Handle root module compilation if not in skip paths
+    if prefix == "" and is_wrappable_module(module):
+        try:
+            module = CompiledWrapper(module)
+        except Exception as e:
+            print(f"Warning: Failed to compile root module {type(module).__name__}: {str(e)}")
+
     # Skip if this is one of the target paths
     if prefix in skip_paths:
-        return
+        return module
+
+    def try_compile_submodule(sub, path):
+        """Helper function to try compiling a submodule."""
+        if path not in skip_paths and is_wrappable_module(sub):
+            try:
+                return CompiledWrapper(sub)
+            except Exception as e:
+                print(f"Warning: Failed to compile module {path}: {str(e)}")
+        return sub
 
     # Try different methods to find and compile modules
     try:
         # Method 1: Try named_children()
         for name, sub in module.named_children():
             path = f"{prefix}.{name}" if prefix else name
-            if path not in skip_paths and is_wrappable_module(sub):
-                setattr(module, name, CompiledWrapper(sub))
+            compiled_sub = try_compile_submodule(sub, path)
+            if compiled_sub is not sub:
+                setattr(module, name, compiled_sub)
             apply_compile_except(sub, skip_paths, path)
     except (AttributeError, TypeError):
         try:
@@ -271,8 +312,9 @@ def apply_compile_except(module: nn.Module, skip_paths: Union[str, List[str]], p
             for name, sub in module.__dict__.items():
                 if isinstance(sub, nn.Module):
                     path = f"{prefix}.{name}" if prefix else name
-                    if path not in skip_paths and is_wrappable_module(sub):
-                        setattr(module, name, CompiledWrapper(sub))
+                    compiled_sub = try_compile_submodule(sub, path)
+                    if compiled_sub is not sub:
+                        setattr(module, name, compiled_sub)
                     apply_compile_except(sub, skip_paths, path)
         except (AttributeError, TypeError):
             # Method 3: Try direct attributes
@@ -282,11 +324,14 @@ def apply_compile_except(module: nn.Module, skip_paths: Union[str, List[str]], p
                         sub = getattr(module, name)
                         if isinstance(sub, nn.Module):
                             path = f"{prefix}.{name}" if prefix else name
-                            if path not in skip_paths and is_wrappable_module(sub):
-                                setattr(module, name, CompiledWrapper(sub))
+                            compiled_sub = try_compile_submodule(sub, path)
+                            if compiled_sub is not sub:
+                                setattr(module, name, compiled_sub)
                             apply_compile_except(sub, skip_paths, path)
                     except (AttributeError, TypeError):
                         continue
+
+    return module
 
 
 def get_submodule_type(module: nn.Module, path: str) -> str:
