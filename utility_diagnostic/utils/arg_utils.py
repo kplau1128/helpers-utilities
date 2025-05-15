@@ -25,7 +25,7 @@ def parse_arguments() -> argparse.Namespace:
             description="Diagnostic tool for diffusion models",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
         )
-        
+
         # Model configuration
         parser.add_argument(
             "--model_name",
@@ -38,7 +38,7 @@ def parse_arguments() -> argparse.Namespace:
             type=str,
             help="Gaudi configuration for HPU devices"
         )
-        
+
         # Device settings
         parser.add_argument(
             "--device",
@@ -47,7 +47,7 @@ def parse_arguments() -> argparse.Namespace:
             default="cpu",
             help="Device to run the model on"
         )
-        
+
         # Test configuration
         parser.add_argument(
             "--mode",
@@ -78,7 +78,7 @@ def parse_arguments() -> argparse.Namespace:
             type=str,
             help="Comma-separated list of module paths to use as roots for diagnostics. If not specified, uses the entire pipeline."
         )
-        
+
         # Output settings
         parser.add_argument(
             "--output_dir",
@@ -98,7 +98,7 @@ def parse_arguments() -> argparse.Namespace:
             default="tensorboard",
             help="Directory to save TensorBoard logs"
         )
-        
+
         # Logging options
         parser.add_argument(
             "--use_tensorboard",
@@ -116,20 +116,20 @@ def parse_arguments() -> argparse.Namespace:
             default="model-diagnostic",
             help="Weights & Biases project name"
         )
-        
+
         # Parse arguments
         try:
             args = parser.parse_args()
         except Exception as e:
             raise ValueError(f"Failed to parse arguments: {str(e)}")
-            
+
         # Validate argument combinations
         # if args.mode == "compile_except":
         #     if not args.exclude_path and not args.test_paths:
         #         raise ValueError(
         #             "compile_except mode requires either --exclude_path or --test_paths"
         #         )
-                
+
         # Validate paths
         if args.test_paths:
             # Check if it's a file path
@@ -143,16 +143,16 @@ def parse_arguments() -> argparse.Namespace:
                     raise ValueError(f"Test paths file exists but cannot be read: {str(e)}")
             # If not a file, assume it's a comma-separated list of paths
             # No validation needed for direct paths as they'll be validated during testing
-            
+
         # Set default Gaudi config for HPU
         if args.device == "hpu" and not args.gaudi_config:
             warnings.warn(
                 "No Gaudi config provided for HPU device, using default: Habana/stable-diffusion"
             )
             args.gaudi_config = "Habana/stable-diffusion"
-            
+
         return args
-        
+
     except Exception as e:
         if isinstance(e, ValueError):
             raise
@@ -188,7 +188,7 @@ def get_config_from_args(args: argparse.Namespace) -> Dict[str, Any]:
             "use_wandb": args.use_wandb,
             "wandb_project": args.wandb_project
         }
-        
+
         # Add optional arguments if present
         if args.gaudi_config:
             config["gaudi_config"] = args.gaudi_config
@@ -196,9 +196,9 @@ def get_config_from_args(args: argparse.Namespace) -> Dict[str, Any]:
             config["exclude_path"] = args.exclude_path
         if args.test_paths:
             config["test_paths"] = args.test_paths
-            
+
         return config
-        
+
     except Exception as e:
         raise ValueError(f"Failed to create configuration: {str(e)}")
 
@@ -226,7 +226,7 @@ def validate_args(args: argparse.Namespace) -> None:
                     "TensorBoard requested but not available. "
                     "Install with: pip install tensorboard"
                 )
-                
+
         # Check W&B availability
         if args.use_wandb:
             try:
@@ -236,7 +236,7 @@ def validate_args(args: argparse.Namespace) -> None:
                     "Weights & Biases requested but not available. "
                     "Install with: pip install wandb"
                 )
-                
+
         # Check HPU availability
         if args.device == "hpu":
             try:
@@ -246,7 +246,7 @@ def validate_args(args: argparse.Namespace) -> None:
                     "HPU device requested but Habana frameworks not available. "
                     "Install with: pip install habana-frameworks"
                 )
-                
+
         # Check CUDA availability
         if args.device == "cuda":
             if not torch.cuda.is_available():
@@ -254,7 +254,7 @@ def validate_args(args: argparse.Namespace) -> None:
                     "CUDA device requested but not available. "
                     "Check your CUDA installation."
                 )
-                
+
     except Exception as e:
         if isinstance(e, ValueError):
             raise

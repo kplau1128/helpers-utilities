@@ -174,10 +174,10 @@ def run_diagnostic(
                 try:
                     # Clear module cache before applying compilation
                     clear_module_cache()
-                    
+
                     # Apply compilation to all modules except excluded paths
                     pipeline = apply_compile_except(pipeline, exclude_paths)
-                    
+
                     # Run test with compiled pipeline
                     with torch.no_grad():
                         # Generate test image
@@ -217,7 +217,7 @@ def run_diagnostic(
                     error_msg = f"{type(e).__name__}: {str(e)}"
                     if logger:
                         logger.error(f"Test failed for compile_except mode: {error_msg}")
-                    
+
                     result = {
                         "mode": "compile_except",
                         "paths": exclude_paths,
@@ -243,7 +243,7 @@ def run_diagnostic(
                     with pipeline_context(model_name, device, gaudi_config) as pipeline:
                         # Clear module cache before each test
                         clear_module_cache()
-                        
+
                         # Get module types
                         module_type = get_submodule_type(pipeline, path)
                         orig_type = get_submodule_orig_type(pipeline, path)
@@ -297,7 +297,7 @@ def run_diagnostic(
                     error_msg = f"{type(e).__name__}: {str(e)}"
                     if logger:
                         logger.error(f"Test failed for path {path}: {error_msg}")
-                    
+
                     result = {
                         "path": path,
                         "type": module_type,
@@ -314,7 +314,7 @@ def run_diagnostic(
 
     # Clear module cache after all tests are done
     clear_module_cache()
-    
+
     return results, bad_paths
 
 

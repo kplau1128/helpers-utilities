@@ -258,7 +258,7 @@ def is_blank(tensor,
 
 def save_image_tensor(image_tensor, path):
     """Save an image tensor to a file.
-    
+
     Args:
         image_tensor (PIL.Image or torch.Tensor): The image to save.
         path (str): The file path to save the image to.
@@ -287,7 +287,7 @@ def list_submodules(model, prefix='', depth=0):
     stack = [(model, '', True, 0, [])]
     # Track visited modules and their paths
     visited = {}
-    
+
     def format_module_line(current_module, prefix, is_last, vertical_lines, extra_info=""):
         """Format a single module line with indentation and markers."""
         name = prefix.split('.')[-1] if prefix else type(current_module).__name__
@@ -295,10 +295,10 @@ def list_submodules(model, prefix='', depth=0):
         marker = '└── ' if is_last else '├── '
         indent = ''.join('│   ' if show_line else '    ' for show_line in vertical_lines)
         return f"{indent}{marker}{name} ({type_str}){extra_info}"
-    
+
     while stack:
         current_module, prefix, is_last, depth, vertical_lines = stack.pop()
-        
+
         # Detect cyclic references
         if id(current_module) in visited:
             if prefix in visited[id(current_module)]:
@@ -321,7 +321,7 @@ def list_submodules(model, prefix='', depth=0):
 
         # Sort children for consistent output
         # children.sort(key=lambda x: x[0])
-        
+
         # Process current module if it's not the root
         lines.append(format_module_line(current_module, prefix, is_last, vertical_lines))
 
@@ -332,7 +332,7 @@ def list_submodules(model, prefix='', depth=0):
             # For children, we need to show vertical line if current node is not last
             child_vertical_lines = vertical_lines + [not is_last]
             stack.append((child, full_name, is_last_child, depth + 1, child_vertical_lines))
-    
+
     return lines
 
 
@@ -379,10 +379,10 @@ def create_pipeline(model_name, gaudi_config=None, device="cpu"):
 def run_diagnostic(model_name, gaudi_config, device, mode, filter_type, exclude_path,
                    save_images, output_dir, tb_writer, wandb_run, submodules=None):
     """Run diagnostic tests on the VAE decoder submodules of a diffusion pipeline.
-    
+
     The function tests the effect of compiling individual submodules or all submodules
     except a specified path, generating images and checking for blank outputs or errors.
-    
+
     Args:
         model_name (str): The name of the pretrained model.
         gaudi_config (str): Configuration for Gaudi pipeline.
@@ -395,7 +395,7 @@ def run_diagnostic(model_name, gaudi_config, device, mode, filter_type, exclude_
         tb_writer (SummaryWriter): TensorBoard writer for logging.
         wandb_run (wandb.Run): Weights and Biases run for logging.
         submodules (list, optional): Pre-filtered list of (path, submodule) tuples to test.
-        
+
     Returns:
         tuple: A tuple containing:
             - results (list): List of diagnostic results for each test.
@@ -405,14 +405,14 @@ def run_diagnostic(model_name, gaudi_config, device, mode, filter_type, exclude_
     pipe = create_pipeline(model_name, gaudi_config, device)
     # Store the original VAE decoder for resetting between tests
     vae_decoder_orig = pipe.vae.decoder
-    
+
     # Get submodules to test
     if submodules is None:
         # Get all submodules of VAE decoder if no pre-filtered list provided
         all_submodules = list(get_all_submodules(pipe.vae.decoder))
         # Filter submodules based on the specified type
         submodules = filter_submodules(all_submodules, filter_type)
-    
+
     if save_images:
         # Create images subdirectory
         images_dir = os.path.join(output_dir, "images")
@@ -569,7 +569,7 @@ def save_results(results, bad_paths, json_path, csv_path, bad_paths_path):
 
 def print_test_summary(results, bad_paths, output_dir):
     """Print a summary of the diagnostic test results.
-    
+
     Args:
         results (list): List of diagnostic result dictionaries.
         bad_paths (list): List of paths that produced blank images or errors.
@@ -585,7 +585,7 @@ def print_test_summary(results, bad_paths, output_dir):
     print(f"Successful tests: {successful}")
     print(f"Blank outputs: {blank_outputs}")
     print(f"Errors: {errors}")
-    
+
     if bad_paths:
         print("\nProblematic submodules:")
         for path in bad_paths:
@@ -600,7 +600,7 @@ def print_test_summary(results, bad_paths, output_dir):
                 print(f"- {path}: {status}")
                 if result["error"]:
                     print(f"  Error: {result['error']}")
-    
+
     print(f"\nDetailed results saved to:")
     print(f"- JSON: {os.path.join(output_dir, 'results.json')}")
     print(f"- CSV: {os.path.join(output_dir, 'results.csv')}")
@@ -611,7 +611,7 @@ def print_test_summary(results, bad_paths, output_dir):
 # ------------------ Main ------------------
 def main():
     """Main entry point for the VAE diagnostic script.
-    
+
     Parses command-line arguments, sets up logging, run diagnostics on the VAE
     decoder submodules, and saves the results.
     """
@@ -620,35 +620,35 @@ def main():
         description="Run diagnostic tests on the VAE decoder submodules of a diffusion pipeline."
     )
     parser.add_argument(
-        "--output", 
-        type=str, 
-        default="vae_diagnostic_output", 
+        "--output",
+        type=str,
+        default="vae_diagnostic_output",
         help="Directory to save diagnostic results and outputs (default: 'vae_diagnostic_output')."
     )
     parser.add_argument(
-        "--device", 
-        type=str, 
-        default="hpu", 
-        choices=["hpu", "cpu"], 
+        "--device",
+        type=str,
+        default="hpu",
+        choices=["hpu", "cpu"],
         help="Device to run the pipeline on ('hpu' or 'cpu', default: 'hpu')."
     )
     parser.add_argument(
-        "--filter", 
-        type=str, 
-        default="all", 
-        choices=["all", "leaf", "non-leaf"], 
+        "--filter",
+        type=str,
+        default="all",
+        choices=["all", "leaf", "non-leaf"],
         help="Type of submodules to test ('all', 'leaf', or 'non-leaf', default: 'all')."
     )
     parser.add_argument(
-        "--mode", 
-        type=str, 
-        default="single", 
-        choices=["single", "compile_except"], 
+        "--mode",
+        type=str,
+        default="single",
+        choices=["single", "compile_except"],
         help="Compilation mode ('single' or 'compile_except', default: 'single')."
     )
     parser.add_argument(
-        "--exclude_path", 
-        type=str, 
+        "--exclude_path",
+        type=str,
         help="Path to exclude in compile_except mode."
     )
     parser.add_argument(
@@ -684,20 +684,20 @@ def main():
         help="Enable Weights and Biases logging."
     )
     parser.add_argument(
-        "--wandb_project", 
-        type=str, 
-        default="vae_diagnostic", 
+        "--wandb_project",
+        type=str,
+        default="vae_diagnostic",
         help="Weights and Biases project name (default: 'vae_diagnostic')."
     )
     parser.add_argument(
-        "--wandb_run", 
-        type=str, 
-        default="run_vae_test", 
+        "--wandb_run",
+        type=str,
+        default="run_vae_test",
         help="Weights and Biases run name (default: 'run_vae_test')."
     )
     parser.add_argument(
-        "--list_submodules", 
-        action="store_true", 
+        "--list_submodules",
+        action="store_true",
         help="List VAE decoder submodules hierarchically and save to a file."
     )
     args = parser.parse_args()
@@ -745,16 +745,16 @@ def main():
         else:
             # If not a file, treat as comma-separated list
             paths_to_test = [path.strip() for path in args.test_paths.split(",") if path.strip()]
-        
+
         if not paths_to_test:
             print("No paths found to test.")
             return
-        
+
         print(f"\nTesting {len(paths_to_test)} specific submodules:")
         for path in paths_to_test:
             print(f"- {path}")
         print()
-        
+
         # Override mode to single and filter to all for specific path testing
         args.mode = "single"
         args.filter = "all"

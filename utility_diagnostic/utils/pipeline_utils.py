@@ -38,12 +38,12 @@ def create_pipeline(model_name, device, gaudi_config=None):
             raise ValueError("Model name cannot be empty")
         if device not in ["hpu", "cuda", "cpu"]:
             raise ValueError(f"Invalid device: {device}")
-            
+
         # Set default Gaudi config for HPU if not provided
         if device == "hpu" and not gaudi_config:
             warnings.warn("No Gaudi config provided for HPU device, using default: Habana/stable-diffusion")
             gaudi_config = "Habana/stable-diffusion"
-            
+
         # Initialize pipeline based on device
         try:
             if device == "hpu":
@@ -65,24 +65,24 @@ def create_pipeline(model_name, device, gaudi_config=None):
             raise RuntimeError(f"Failed to import required modules: {str(e)}")
         except RuntimeError as e:
             raise RuntimeError(f"Failed to initialize pipeline: {str(e)}")
-            
+
         # Configure pipeline
         try:
             # Disable progress bar
             pipeline.set_progress_bar_config(disable=True)
-            
+
             # Move pipeline to device
             pipeline = pipeline.to(device)
-            
+
             # Verify pipeline components
             if not hasattr(pipeline, 'vae') or not hasattr(pipeline, 'unet'):
                 raise RuntimeError("Pipeline is missing required components")
-                
+
             return pipeline
-            
+
         except Exception as e:
             raise RuntimeError(f"Failed to configure pipeline: {str(e)}")
-            
+
     except Exception as e:
         if isinstance(e, (ValueError, RuntimeError)):
             raise
@@ -132,35 +132,35 @@ def save_results(results, bad_paths, output_dir):
             raise ValueError("Results must be a list")
         if not isinstance(bad_paths, list):
             raise ValueError("Bad paths must be a list")
-            
+
         # Create output directory
         try:
             os.makedirs(output_dir, exist_ok=True)
         except Exception as e:
             raise IOError(f"Failed to create output directory: {str(e)}")
-            
+
         # Save results to CSV
         try:
             csv_path = os.path.join(output_dir, "results.csv")
             with open(csv_path, "w") as f:
                 # Write header
                 f.write("path,type,original_type,status,error\n")
-                
+
                 # Write results
                 for result in results:
                     if not isinstance(result, dict):
                         raise ValueError("Each result must be a dictionary")
-                        
+
                     # Get values with defaults
                     path = result.get("path", "")
                     type_str = str(result.get("type", ""))
                     orig_type = str(result.get("original_type", ""))
                     status = result.get("status", "unknown")
                     error = str(result.get("error", "")).replace(",", ";")
-                    
+
                     # Write row
                     f.write(f"{path},{type_str},{orig_type},{status},{error}\n")
-                    
+
         except Exception as e:
             raise IOError(f"Failed to save results to CSV: {str(e)}")
 
@@ -189,10 +189,10 @@ def save_results(results, bad_paths, output_dir):
                     if not isinstance(path, str):
                         raise ValueError("Each path must be a string")
                     f.write(f"{path}\n")
-                    
+
         except Exception as e:
             raise IOError(f"Failed to save bad paths: {str(e)}")
-            
+
     except Exception as e:
         if isinstance(e, (ValueError, IOError)):
             raise
@@ -219,24 +219,24 @@ def print_test_summary(results, bad_paths):
             raise ValueError("Results must be a list")
         if not isinstance(bad_paths, list):
             raise ValueError("Bad paths must be a list")
-            
+
         # Calculate statistics
         try:
             total = len(results)
             passed = sum(1 for r in results if r.get("status") == "passed")
             failed = sum(1 for r in results if r.get("status") == "failed")
             unknown = total - passed - failed
-            
+
             # Print summary
             print("\nTest Summary:")
             print(f"Total modules tested: {total}")
             print(f"Passed: {passed}")
             print(f"Failed: {failed}")
             print(f"Unknown: {unknown}")
-            
+
         except Exception as e:
             print(f"Warning: Failed to calculate statistics: {str(e)}")
-            
+
         # Print failed paths
         try:
             if bad_paths:
@@ -245,10 +245,10 @@ def print_test_summary(results, bad_paths):
                     if not isinstance(path, str):
                         raise ValueError("Each path must be a string")
                     print(f"- {path}")
-                    
+
         except Exception as e:
             print(f"Warning: Failed to print failed paths: {str(e)}")
-            
+
         # Print error details
         try:
             errors = [r for r in results if r.get("status") == "failed" and r.get("error")]
@@ -258,10 +258,10 @@ def print_test_summary(results, bad_paths):
                     path = error.get("path", "unknown")
                     error_msg = error.get("error", "unknown error")
                     print(f"- {path}: {error_msg}")
-                    
+
         except Exception as e:
             print(f"Warning: Failed to print error details: {str(e)}")
-            
+
     except Exception as e:
         if isinstance(e, ValueError):
             raise

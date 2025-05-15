@@ -1,1 +1,1 @@
-"""Pipeline diagnostic package.""" 
+"""Pipeline diagnostic package."""

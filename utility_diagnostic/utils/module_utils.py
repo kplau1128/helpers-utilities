@@ -205,11 +205,11 @@ def get_wrapped_module(module: nn.Module) -> Union[CompiledWrapper, nn.Module]:
         Union[CompiledWrapper, nn.Module]: The wrapped module or original if wrapping fails.
     """
     module_id = id(module)
-    
+
     # Return cached wrapper if available
     if module_id in _module_cache:
         return _module_cache[module_id]
-    
+
     # Create new wrapper if module is wrappable
     if is_wrappable_module(module):
         try:
@@ -218,7 +218,7 @@ def get_wrapped_module(module: nn.Module) -> Union[CompiledWrapper, nn.Module]:
             return wrapped
         except Exception as e:
             print(f"Warning: Failed to compile module {type(module).__name__}: {str(e)}")
-    
+
     return module
 
 
@@ -460,4 +460,4 @@ def list_submodules(model, prefix='', depth=0):
                 indent = '   ' * depth
                 type_str = f"{type(model).__module__}.{type(model).__name__}"
                 lines.append(f"{indent}- {prefix}: {type_str}")
-    return lines 
+    return lines

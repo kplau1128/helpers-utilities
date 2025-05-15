@@ -219,4 +219,4 @@ The tool implements comprehensive error handling:
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. 
+Contributions are welcome! Please feel free to submit a Pull Request.

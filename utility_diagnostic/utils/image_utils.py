@@ -34,21 +34,21 @@ def is_blank(tensor,
         # Convert PIL Image to tensor if necessary
         if isinstance(tensor, Image.Image):
             tensor = T.ToTensor()(tensor)
-            
+
         # Validate tensor type
         if not isinstance(tensor, torch.Tensor):
             raise ValueError("Input must be a torch.Tensor or PIL.Image")
-            
+
         # Check if tensor is empty
         if tensor.numel() == 0:
             raise ValueError("Input tensor is empty")
-            
+
         # Handle batch dimension
         if tensor.dim() == 4:  # Batch of images
             tensor = tensor[0]  # Take first image
         elif tensor.dim() != 3:
             raise ValueError(f"Expected 3D tensor (C,H,W) or 4D tensor (B,C,H,W), got {tensor.dim()}D")
-            
+
         # Validate number of channels
         if tensor.size(0) not in [1, 3]:
             raise ValueError(f"Expected 1 or 3 channels, got {tensor.size(0)}")
@@ -86,36 +86,36 @@ def save_image_tensor(tensor, output_path):
     try:
         # Create output directory if it doesn't exist
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        
+
         # Convert PIL Image to tensor if necessary
         if isinstance(tensor, Image.Image):
             tensor = T.ToTensor()(tensor)
-            
+
         # Validate tensor type
         if not isinstance(tensor, torch.Tensor):
             raise ValueError("Input must be a torch.Tensor or PIL.Image")
-            
+
         # Check if tensor is empty
         if tensor.numel() == 0:
             raise ValueError("Input tensor is empty")
-            
+
         # Handle batch dimension
         if tensor.dim() == 4:  # Batch of images
             tensor = tensor[0]  # Take first image
         elif tensor.dim() != 3:
             raise ValueError(f"Expected 3D tensor (C,H,W) or 4D tensor (B,C,H,W), got {tensor.dim()}")
-            
+
         # Validate number of channels
         if tensor.size(0) not in [1, 3]:
             raise ValueError(f"Expected 1 or 3 channels, got {tensor.size(0)}")
-            
+
         # Convert tensor to PIL Image and save
         if tensor.size(0) == 1:  # Grayscale
             tensor = tensor.repeat(3, 1, 1)  # Convert to RGB
         tensor = tensor.clamp(0, 1)  # Ensure values are in [0, 1]
         image = T.ToPILImage()(tensor)
         image.save(output_path)
-        
+
     except Exception as e:
         if isinstance(e, ValueError):
             raise
@@ -168,31 +168,31 @@ def tensor_to_pil(tensor):
         # Validate tensor type
         if not isinstance(tensor, torch.Tensor):
             raise ValueError("Input must be a torch.Tensor")
-            
+
         # Check if tensor is empty
         if tensor.numel() == 0:
             raise ValueError("Input tensor is empty")
-            
+
         # Handle batch dimension
         if tensor.dim() == 4:  # Batch of images
             tensor = tensor[0]  # Take first image
         elif tensor.dim() != 3:
             raise ValueError(f"Expected 3D tensor (C,H,W) or 4D tensor (B,C,H,W), got {tensor.dim()}")
-            
+
         # Validate number of channels
         if tensor.size(0) not in [1, 3]:
             raise ValueError(f"Expected 1 or 3 channels, got {tensor.size(0)}")
-            
+
         # Convert grayscale to RGB if necessary
         if tensor.size(0) == 1:
             tensor = tensor.repeat(3, 1, 1)
-            
+
         # Ensure values are in [0, 1]
         tensor = tensor.clamp(0, 1)
-        
+
         # Convert to PIL Image
         return T.ToPILImage()(tensor)
-        
+
     except Exception as e:
         raise ValueError(f"Error converting tensor to PIL Image: {str(e)}")
 
@@ -215,20 +215,20 @@ def pil_to_tensor(image):
         # Validate input type
         if not isinstance(image, Image.Image):
             raise ValueError("Input must be a PIL.Image")
-            
+
         # Check if image is empty
         if image.size[0] == 0 or image.size[1] == 0:
             raise ValueError("Input image is empty")
-            
+
         # Convert to tensor
         tensor = T.ToTensor()(image)
-        
+
         # Validate number of channels
         if tensor.size(0) not in [1, 3]:
             raise ValueError(f"Expected 1 or 3 channels, got {tensor.size(0)}")
-            
+
         return tensor
-        
+
     except Exception as e:
         raise ValueError(f"Error converting PIL Image to tensor: {str(e)}")
 
@@ -254,34 +254,34 @@ def normalize_tensor(tensor, mean=None, std=None):
         # Validate tensor type
         if not isinstance(tensor, torch.Tensor):
             raise ValueError("Input must be a torch.Tensor")
-            
+
         # Check if tensor is empty
         if tensor.numel() == 0:
             raise ValueError("Input tensor is empty")
-            
+
         # Handle batch dimension
         if tensor.dim() == 4:  # Batch of images
             tensor = tensor[0]  # Take first image
         elif tensor.dim() != 3:
             raise ValueError(f"Expected 3D tensor (C,H,W) or 4D tensor (B,C,H,W), got {tensor.dim()}")
-            
+
         # Validate number of channels
         if tensor.size(0) not in [1, 3]:
             raise ValueError(f"Expected 1 or 3 channels, got {tensor.size(0)}")
-            
+
         # Set default values if not provided
         if mean is None:
             mean = [0.485, 0.456, 0.406] if tensor.size(0) == 3 else [0.5]
         if std is None:
             std = [0.229, 0.224, 0.225] if tensor.size(0) == 3 else [0.5]
-            
+
         # Convert to tensors
         mean = torch.tensor(mean).view(-1, 1, 1)
         std = torch.tensor(std).view(-1, 1, 1)
-        
+
         # Normalize
         return (tensor - mean) / std
-        
+
     except Exception as e:
         raise ValueError(f"Error normalizing tensor: {str(e)}")
 
@@ -307,33 +307,33 @@ def denormalize_tensor(tensor, mean=None, std=None):
         # Validate tensor type
         if not isinstance(tensor, torch.Tensor):
             raise ValueError("Input must be a torch.Tensor")
-            
+
         # Check if tensor is empty
         if tensor.numel() == 0:
             raise ValueError("Input tensor is empty")
-            
+
         # Handle batch dimension
         if tensor.dim() == 4:  # Batch of images
             tensor = tensor[0]  # Take first image
         elif tensor.dim() != 3:
             raise ValueError(f"Expected 3D tensor (C,H,W) or 4D tensor (B,C,H,W), got {tensor.dim()}")
-            
+
         # Validate number of channels
         if tensor.size(0) not in [1, 3]:
             raise ValueError(f"Expected 1 or 3 channels, got {tensor.size(0)}")
-            
+
         # Set default values if not provided
         if mean is None:
             mean = [0.485, 0.456, 0.406] if tensor.size(0) == 3 else [0.5]
         if std is None:
             std = [0.229, 0.224, 0.225] if tensor.size(0) == 3 else [0.5]
-            
+
         # Convert to tensors
         mean = torch.tensor(mean).view(-1, 1, 1)
         std = torch.tensor(std).view(-1, 1, 1)
-        
+
         # Denormalize
         return tensor * std + mean
-        
+
     except Exception as e:
-        raise ValueError(f"Error denormalizing tensor: {str(e)}") 
+        raise ValueError(f"Error denormalizing tensor: {str(e)}")

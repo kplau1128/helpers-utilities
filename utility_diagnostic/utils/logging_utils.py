@@ -28,18 +28,18 @@ def setup_logging(log_dir: str, name: str = "diagnostic") -> logging.Logger:
     try:
         # Create log directory
         os.makedirs(log_dir, exist_ok=True)
-        
+
         # Create logger
         logger = logging.getLogger(name)
         logger.setLevel(logging.DEBUG)
-        
+
         # Clear existing handlers
         logger.handlers = []
-        
+
         # Create file handler
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = os.path.join(log_dir, f"{name}_{timestamp}.log")
-        
+
         try:
             file_handler = logging.FileHandler(log_file)
             file_handler.setLevel(logging.DEBUG)
@@ -50,7 +50,7 @@ def setup_logging(log_dir: str, name: str = "diagnostic") -> logging.Logger:
             logger.addHandler(file_handler)
         except Exception as e:
             raise IOError(f"Failed to create file handler: {str(e)}")
-            
+
         # Create console handler
         try:
             console_handler = logging.StreamHandler()
@@ -62,9 +62,9 @@ def setup_logging(log_dir: str, name: str = "diagnostic") -> logging.Logger:
             logger.addHandler(console_handler)
         except Exception as e:
             raise IOError(f"Failed to create console handler: {str(e)}")
-            
+
         return logger
-        
+
     except Exception as e:
         if isinstance(e, IOError):
             raise
@@ -90,10 +90,10 @@ def setup_tensorboard(log_dir: str) -> Optional[Any]:
         except ImportError:
             warnings.warn("TensorBoard not available. Skipping TensorBoard setup.")
             return None
-            
+
         # Create log directory
         os.makedirs(log_dir, exist_ok=True)
-        
+
         # Create SummaryWriter
         try:
             writer = SummaryWriter(log_dir=log_dir)
@@ -101,7 +101,7 @@ def setup_tensorboard(log_dir: str) -> Optional[Any]:
         except Exception as e:
             warnings.warn(f"Failed to create TensorBoard writer: {str(e)}")
             return None
-            
+
     except Exception as e:
         warnings.warn(f"Unexpected error setting up TensorBoard: {str(e)}")
         return None
@@ -128,7 +128,7 @@ def setup_wandb(project_name: str, config: Optional[Dict[str, Any]] = None) -> O
         except ImportError:
             warnings.warn("Weights & Biases not available. Skipping W&B setup.")
             return None
-            
+
         # Initialize W&B
         try:
             run = wandb.init(
@@ -140,7 +140,7 @@ def setup_wandb(project_name: str, config: Optional[Dict[str, Any]] = None) -> O
         except Exception as e:
             warnings.warn(f"Failed to initialize W&B: {str(e)}")
             return None
-            
+
     except Exception as e:
         warnings.warn(f"Unexpected error setting up W&B: {str(e)}")
         return None
@@ -171,27 +171,27 @@ class Timer:
         self.wandb_run = wandb_run
         self.start_time = None
         self.elapsed_time = None
-        
+
     def __enter__(self):
         """Start the timer."""
         self.start_time = time.time()
         return self
-        
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Stop the timer and log the elapsed time."""
         self.elapsed_time = time.time() - self.start_time
-        
+
         # Log to console/file
         if self.logger:
             self.logger.info(f"{self.name}: {self.elapsed_time:.2f} seconds")
-            
+
         # Log to TensorBoard
         if self.writer:
             try:
                 self.writer.add_scalar(f"time/{self.name}", self.elapsed_time)
             except Exception as e:
                 warnings.warn(f"Failed to log time to TensorBoard: {str(e)}")
-                
+
         # Log to W&B
         if self.wandb_run:
             try:
@@ -224,7 +224,7 @@ def log_metrics(
         if logger:
             for name, value in metrics.items():
                 logger.info(f"{name}: {value:.4f}")
-                
+
         # Log to TensorBoard
         if writer:
             try:
@@ -232,14 +232,14 @@ def log_metrics(
                     writer.add_scalar(name, value, step)
             except Exception as e:
                 warnings.warn(f"Failed to log metrics to TensorBoard: {str(e)}")
-                
+
         # Log to W&B
         if wandb_run:
             try:
                 wandb_run.log(metrics, step=step)
             except Exception as e:
                 warnings.warn(f"Failed to log metrics to W&B: {str(e)}")
-                
+
     except Exception as e:
         warnings.warn(f"Unexpected error logging metrics: {str(e)}")
 
@@ -271,20 +271,20 @@ def cleanup_logging(
                 logger.handlers = []
             except Exception as e:
                 warnings.warn(f"Failed to clean up logger: {str(e)}")
-                
+
         # Clean up TensorBoard writer
         if writer:
             try:
                 writer.close()
             except Exception as e:
                 warnings.warn(f"Failed to clean up TensorBoard writer: {str(e)}")
-                
+
         # Clean up W&B run
         if wandb_run:
             try:
                 wandb_run.finish()
             except Exception as e:
                 warnings.warn(f"Failed to clean up W&B run: {str(e)}")
-                
+
     except Exception as e:
-        warnings.warn(f"Unexpected error cleaning up logging: {str(e)}") 
+        warnings.warn(f"Unexpected error cleaning up logging: {str(e)}")
