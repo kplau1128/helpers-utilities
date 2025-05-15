@@ -18,6 +18,9 @@ This repository contains a collection of tools and utilities designed to assist 
 
 ```bash
 helpers-utilities/
+ ├── examples/
+ │   ├── selective_compilation.py
+ │   └── compile_pipeline_components.py
  ├── utility_diagnostic/
  │   ├── utils/
  │   │   ├── __init__.py
@@ -38,6 +41,9 @@ helpers-utilities/
 
 ### Files
 
+- **`examples/`**: Example scripts demonstrating the usage of the utilities:
+  - `selective_compilation.py`: Example of selectively compiling specific components of a pipeline
+  - `compile_pipeline_components.py`: Example of compiling different pipeline components
 - **`utility_diagnostic/utils/`**: A collection of utility modules that provide common functionality:
   - `arg_utils.py`: Command-line argument parsing and validation
   - `image_utils.py`: Image processing and manipulation utilities
@@ -51,6 +57,7 @@ helpers-utilities/
 
 - **VAE Submodule Diagnostics**: Test the effect of compiling individual VAE decoder submodules or all submodules except a specified path.
 - **Pipeline Submodule Diagnostics**: Test the effect of compiling individual pipeline submodules or all submodules except a specified path.
+- **Selective Compilation**: Examples demonstrating how to selectively compile specific components of a pipeline for optimal performance.
 - **Image Generation**: Generate images using a diffusion pipeline and check for blank outputs or errors.
 - **Logging**: Log results to TensorBoard or Weights and Biases for better visualization.
 - **Submodule Listing**: List all submodules of the VAE decoder or pipeline hierarchically.
