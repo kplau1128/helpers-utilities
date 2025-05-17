@@ -15,6 +15,7 @@ This repository provides a flexible, high-performance script for running text-to
 - **Automatic model type detection and configuration**
 - **Batch processing support** for efficient generation of multiple images
 - **Model offloading** for handling large images and complex prompts
+- **Titles for each part of the comparison grid**
 
 ---
 
@@ -115,6 +116,7 @@ python diffusion_lora.py \
     - **Weights Restored Output** (after unloading LoRA)
 - Each image is saved with a timestamp and prompt hash for easy reference
 - A JSON metadata file is generated alongside the images containing generation parameters
+- Titles are added to each part of the comparison grid for clarity
 
 ---
 
@@ -138,7 +140,14 @@ python diffusion_lora.py \
 
 > **Note:** The example comparison grid image will be generated when you run the script. The image shown below is a placeholder.
 
-![Example Comparison Grid](outputs/comparison_grid.png)
+```bash
+PT_HPU_LAZY_MODE=1 python ./test_diffusion_lora/diffusion_lora.py \
+--model_id "black-forest-labs/FLUX.1-dev" \
+--prompt "A picture of a dog in a bucket" \
+--lora_paths users_lora_models/dog_lora_flux_1_bf16
+```
+
+![Example Comparison Grid](outputs\FLUX.1-dev\comparison_grid.png)
 
 ---
 
